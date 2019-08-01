@@ -107,6 +107,11 @@ mutable struct PAIRWISE_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	times::Vector{Float64}
 end
 
+mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
+	nmacs::Int64
+	alerts::Int64
+end
+
 mutable struct SIMULATION
 	enc_file::String
 	acs::Vector{AIRCRAFT}
@@ -156,6 +161,11 @@ function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
 									 times = Vector{Float64}())
 	return PAIRWISE_SIMULATION_OUTPUT(ac1_trajectories, ac2_trajectories,
 										ac1_actions, ac2_actions, times)
+end
+
+function small_simulation_output(;nmacs = 0, 
+								alerts = 0)
+	return SMALL_SIMULATION_OUTPUT(nmacs, alerts)
 end
 
 function pairwise_encounter_output(;ac1_trajectory = TRAJECTORY(),

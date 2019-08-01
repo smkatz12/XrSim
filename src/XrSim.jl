@@ -91,6 +91,25 @@ function update_output!(sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::ENCOUNTER)
 	push!(sim_out.ac2_actions, enc.enc_out.ac2_actions)
 end
 
+function update_output!(sim_out::SMALL_SIMULATION_OUTPUT, enc::ENCOUNTER)
+	is_nmac(enc.enc_out) ? sim_out.nmacs += 1 : nothing
+	is_alert(enc.enc_out) ? sim_out.alerts += 1 : nothing
+end
+
+function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
+	τ₀ = enc_out.ac1_trajectory
+	τ₁ = enc_out.ac2_trajectory
+
+	for i = 1:length(τ₀)
+		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
+		v_sep = get_vert_sep(τ₀[i], τ₁[i])
+		nmac = h_sep < 500ft2m && v_sep < 100ft2m
+		if nmac
+			return true
+		end
+	end
+end
+
 function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vector{AIRCRAFT})
 	push!(enc_out.ac1_trajectory, acs[1].curr_phys_state)
 	# println("Phys_state: $(acs[1].curr_phys_state)")
