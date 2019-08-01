@@ -5,9 +5,9 @@ General Types
 -------------------------------------------
 """
 struct PHYSICAL_STATE
-	p::Vector{Float64}
-	v::Vector{Float64}
-	a::Vector{Float64}
+	p::Vector{Float64} # (m, m, ft)
+	v::Vector{Float64} # (m/s, m/s, ft/s)
+	a::Vector{Float64} # (m/s², m/s², ft/s²)
 end
 
 struct MDP_STATE
@@ -68,6 +68,17 @@ mutable struct UAM_VERT <: AIRCRAFT
 	qmat::Array{Float64,2}
 end
 
+mutable struct HEURISTIC_VERT <: AIRCRAFT
+	ẍ::Vector{Float64}
+	ÿ::Vector{Float64}
+	z̈::Vector{Float64}
+	curr_action::Int64
+	curr_mdp_state::MDP_STATE
+	curr_phys_state::PHYSICAL_STATE
+	alerted::Bool
+	curr_step::Int64
+end
+
 abstract type ENCOUNTER_OUTPUT
 end
 
@@ -93,6 +104,7 @@ mutable struct PAIRWISE_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	ac2_trajectories::Vector{TRAJECTORY}
 	ac1_actions::Vector{ACTION_SEQUENCE}
 	ac2_actions::Vector{ACTION_SEQUENCE}
+	times::Vector{Float64}
 end
 
 mutable struct SIMULATION
@@ -140,9 +152,10 @@ end
 function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
 									 ac2_trajectories = Vector{TRAJECTORY}(),
 									 ac1_actions = Vector{ACTION_SEQUENCE}(),
-									 ac2_actions = Vector{ACTION_SEQUENCE}())
+									 ac2_actions = Vector{ACTION_SEQUENCE}(),
+									 times = Vector{Float64}())
 	return PAIRWISE_SIMULATION_OUTPUT(ac1_trajectories, ac2_trajectories,
-										ac1_actions, ac2_actions)
+										ac1_actions, ac2_actions, times)
 end
 
 function pairwise_encounter_output(;ac1_trajectory = TRAJECTORY(),

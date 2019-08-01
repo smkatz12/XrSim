@@ -10,5 +10,6 @@ import Base: copy
 
 include("XrConst.jl")
 include("XrTypes.jl")
+include("XrLogic.jl")
 include("XrSim.jl")
 include("XrInterface.jl")
