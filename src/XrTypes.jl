@@ -110,6 +110,7 @@ end
 mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	nmacs::Int64
 	alerts::Int64
+	times::Vector{Float64}
 end
 
 mutable struct SIMULATION
@@ -154,6 +155,18 @@ function uam_vert(;ẍ = Vector{Float64}(),
 						alerted, curr_step, grid, qmat)
 end
 
+function heuristic_vert(;ẍ = Vector{Float64}(),
+				   ÿ = Vector{Float64}(),
+				   z̈ = Vector{Float64}(),
+				   curr_action = COC,
+				   curr_mdp_state = mdp_state(),
+				   curr_phys_state = physical_state(),
+				   alerted = false,
+				   curr_step = 1)
+	return HEURISTIC_VERT(ẍ, ÿ, z̈, curr_action, curr_mdp_state, curr_phys_state, 
+						alerted, curr_step)
+end
+
 function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
 									 ac2_trajectories = Vector{TRAJECTORY}(),
 									 ac1_actions = Vector{ACTION_SEQUENCE}(),
@@ -164,8 +177,9 @@ function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
 end
 
 function small_simulation_output(;nmacs = 0, 
-								alerts = 0)
-	return SMALL_SIMULATION_OUTPUT(nmacs, alerts)
+								alerts = 0,
+								times = Vector{Float64}())
+	return SMALL_SIMULATION_OUTPUT(nmacs, alerts, times)
 end
 
 function pairwise_encounter_output(;ac1_trajectory = TRAJECTORY(),
@@ -190,4 +204,18 @@ Other Stuff
 """
 function copy(s::PHYSICAL_STATE)
 	return PHYSICAL_STATE(s.p, s.v, s.a)
+end
+
+function reset!(sim_out::PAIRWISE_SIMULATION_OUTPUT)
+	sim_out.ac1_trajectories = Vector{TRAJECTORY}()
+	sim_out.ac2_trajectories = Vector{TRAJECTORY}()
+	sim_out.ac1_actions = Vector{ACTION_SEQUENCE}()
+	sim_out.ac2_actions = Vector{ACTION_SEQUENCE}()
+	sim_out.times = Vector{Float64}()
+end
+
+function reset!(sim_out::SMALL_SIMULATION_OUTPUT)
+	sim_out.nmacs = 0
+	sim_out.alerts = 0
+	sim_out.times = Vector{Float64}()
 end

@@ -44,7 +44,7 @@ function heuristic_vert(s::MDP_STATE)
 		# If above
 		else
 			# Determine if crossing seems possible
-			time_to_cross = 450*60/h # Multiply by 60 nto go from minutes to seconds
+			time_to_cross = 450*60/s.h # Multiply by 60 nto go from minutes to seconds
 			time_to_450 = (450 - s.ḣ₀)/0.15g # Time to actually get to strong climb
 			crossing_time = time_to_cross + time_to_450 + 5 # 5 second buffer
 			# If so

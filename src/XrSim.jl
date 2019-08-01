@@ -1,38 +1,37 @@
-# function xr_sim!(sim::SIMULATION)
-# 	reset!(sim)
-# 	# Load in the text file to get dt, num_steps, and all of the encounters
-# 	open(sim.enc_file) do f
-# 		dt = parse(Float64, readline(f))
-# 		#println(dt)
-# 		num_steps = parse(Int64, readline(f))
-# 		# For each encounter
-# 		while !eof(f)
-# 			# Make an encounter out of info
-# 			for ac in sim.acs
-# 				reset!(ac)
-# 				#p = readline(f)
-# 				p = [parse(Float64, ss) for ss in split(readline(f))]
-# 				#println(typeof(p))
-# 				v = [parse(Float64, ss) for ss in split(readline(f))]
-# 				a = [parse(Float64, ss) for ss in split(readline(f))]
-# 				ac.curr_phys_state = PHYSICAL_STATE(p, v, a)
-# 				ac.ẍ = [parse(Float64, ss) for ss in split(readline(f))]
-# 				@show ac.ẍ
-# 				ac.ÿ = [parse(Float64, ss) for ss in split(readline(f))]
-# 				ac.z̈ = [parse(Float64, ss) for ss in split(readline(f))]
-# 			end
-# 			enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
-# 			enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
-# 			# Simulate the encounter
-# 			simulate_encounter!(enc)
-# 			update_output!(sim.sim_out, enc)
-# 		end
-# 		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
-# 	end
-# end
+function xr_sim!(sim::SIMULATION; enc_inds=[])
+	reset!(sim.sim_out)
+	#i = 1
+	# Load in the bin file to get dt, num_steps, and all of the encounters
+	open(sim.enc_file, "r") do f
+		dt = read(f, Float64)
+		num_steps = read(f, Int64)
+		# For each encounter
+		while !eof(f)
+			#println(i)
+			#i += 1
+			# Make an encounter out of info
+			for ac in sim.acs
+				reset!(ac)
+				ac.curr_phys_state = read_phys_state(f)
+				ac.ẍ = read_vector(f, num_steps)
+				ac.ÿ = read_vector(f, num_steps)
+				ac.z̈ = read_vector(f, num_steps)
+				#@show ac.z̈
+			end
+			enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
+			enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
+			# Simulate the encounter
+			simulate_encounter!(enc)
+			update_output!(sim.sim_out, enc)
+		end
+		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
+	end
+end
 
-function xr_sim!(sim::SIMULATION)
-	reset!(sim)
+function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64})
+	reset!(sim.sim_out)
+	ind = 1
+	enc_ind = 1
 	# Load in the bin file to get dt, num_steps, and all of the encounters
 	open(sim.enc_file, "r") do f
 		dt = read(f, Float64)
@@ -48,11 +47,18 @@ function xr_sim!(sim::SIMULATION)
 				ac.z̈ = read_vector(f, num_steps)
 				#@show ac.z̈
 			end
-			enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
-			enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
-			# Simulate the encounter
-			simulate_encounter!(enc)
-			update_output!(sim.sim_out, enc)
+			if ind == enc_inds[enc_ind]
+				enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
+				enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
+				# Simulate the encounter
+				simulate_encounter!(enc)
+				update_output!(sim.sim_out, enc)
+				enc_ind += 1
+				if enc_ind > length(enc_inds)
+					break
+				end
+			end
+			ind += 1
 		end
 		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
 	end
@@ -84,6 +90,10 @@ function initialize_encounter_output(sim_out::PAIRWISE_SIMULATION_OUTPUT, aircra
 	return pairwise_encounter_output()
 end
 
+function initialize_encounter_output(sim_out::SMALL_SIMULATION_OUTPUT, aircraft::Vector{AIRCRAFT})
+	return pairwise_encounter_output()
+end
+
 function update_output!(sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::ENCOUNTER)
 	push!(sim_out.ac1_trajectories, enc.enc_out.ac1_trajectory)
 	push!(sim_out.ac2_trajectories, enc.enc_out.ac2_trajectory)
@@ -108,6 +118,21 @@ function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 			return true
 		end
 	end
+	return false
+end
+
+function get_horiz_sep(ps₀, ps₁)
+	return sqrt((ps₀.p[1] - ps₁.p[1])^2 + (ps₀.p[2] - ps₁.p[2])^2)
+end
+
+function get_vert_sep(ps₀, ps₁)
+	return abs(ps₀.p[3] - ps₁.p[3])
+end
+
+function is_alert(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
+	alert₀ = any(enc_out.ac1_actions .> 0)
+	alert₁ = any(enc_out.ac2_actions .> 0)
+	return alert₀ || alert₁
 end
 
 function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vector{AIRCRAFT})
@@ -157,7 +182,7 @@ function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra
 	# Rotate intuder velocity to be relative to ownship heading of zero degrees
 	v₁ = [int_state.v[1], int_state.v[2]]
 	v₀ = [own_state.v[1], own_state.v[2]]
-	if any(v₁ .> 0.0) && any(v₀ .> 0.0)
+	if any(v₁ .> 1e-8) && any(v₀ .> 1e-8)
 		rot_ang = -atand(own_state.v[2], own_state.v[1])
 		R = [cosd(rot_ang) -sind(rot_ang); sind(rot_ang) cosd(rot_ang)]
 		v₁rot = R*v₁
