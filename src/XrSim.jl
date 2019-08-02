@@ -161,6 +161,7 @@ function simulate_encounter!(enc::ENCOUNTER)
 		for ac in enc.aircraft
 			action = select_action(ac)
 			dynamics!(ac, action, enc.dt)
+			#typeof(ac) == UAM_VERT ? println("alerted: $(ac.alerted)") : nothing
 		end
 		# get next mdp state - mdp_state(phys_state)
 		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action)
@@ -200,6 +201,8 @@ function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra
 end
 
 function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)		
+	should_print = typeof(ac) == UAM_VERT && action > COC
+
 	ac.curr_action = action
 	curr_p = ac.curr_phys_state.p
 	curr_v = ac.curr_phys_state.v
@@ -215,6 +218,8 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		# Sample an acceleration
 		next_az = rand(acceleration_dist)
 		vlow, vhigh = vel_ranges[action]
+		#should_print ? println("curr_v: $(curr_v[3])") : nothing
+		#println("curr_v: $(curr_v[3])")
 		if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
         	next_az = 0
 	    elseif vlow > curr_v[3] + next_az 
@@ -223,11 +228,15 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 	        next_az = vhigh - curr_v[3]
 	    end
 	end
+	#println("next_az: $next_az")
+	#should_print ? println("next_az: $next_az") : nothing
     next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
 	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
 	next_v = curr_v + next_a*dt
+	#should_print ? println("next_v: $next_v") : nothing
 
 	ac.curr_phys_state = PHYSICAL_STATE(next_p, next_v, next_a)
+	#should_print ? println(ac.curr_phys_state.v) : nothing
 	ac.curr_step += 1
 end
 

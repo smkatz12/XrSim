@@ -12,12 +12,12 @@ function plot_ground_track(τs::Vector{TRAJECTORY})
 	# Initialize plot object
 	a = Axis()
 
-	a.axisEqualImage = true
+	a.axisEqual = true
 
 	# Iterate through aircraft and plot the trajectories
 	for i = 1:length(τs)
 		x, y, z = convert_to_xyz(τs[i])
-		push!(a, Plots.Linear(x, y, mark="none"))
+		push!(a, Plots.Linear(x, y, mark="none", style="black"))
         a.xlabel = "East (m)"
         a.ylabel = "North (m)"
         a.title = "Ground Track"
@@ -43,7 +43,7 @@ function plot_vertical_profile(times, τs::Vector{TRAJECTORY})
 	# Iterate through aircraft and plot the trajectories
 	for i = 1:length(τs)
 		x, y, z = convert_to_xyz(τs[i])
-		push!(a, Plots.Linear(times, z, mark="none"))
+		push!(a, Plots.Linear(times, z, mark="none", style="black"))
         a.xlabel = "Time (s)"
         a.ylabel = "Altitude (ft)"
         a.title = "Vertical Profile"
@@ -229,6 +229,23 @@ function get_vert_info_plot(times, τs::Vector{TRAJECTORY}, t::Float64)
 	return a
 end
 
+function add_RAs_horiz(τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis)
+	for i = 1:length(τs)
+		x, y, ni = convert_to_xyz(τs[i])
+		z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+		push!(a, Plots.Scatter(x, y, z, scatterClasses=sc))
+	end
+	return a
+end
+
+function add_RAs_vertical(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis)
+	for i = 1:length(τs)
+		x, y, ni = convert_to_xyz(τs[i])
+		z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+		push!(a, Plots.Scatter(times, ni, z, scatterClasses=sc))
+	end
+	return a
+end
 
 """
 function encounter_viewer
@@ -250,10 +267,16 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC)
 		push!(τs, sim_out.ac1_trajectories[enc_ind])
 		push!(τs, sim_out.ac2_trajectories[enc_ind])
 
+		actions = Vector{ACTION_SEQUENCE}()
+		push!(actions, sim_out.ac1_actions[enc_ind])
+		push!(actions, sim_out.ac2_actions[enc_ind])
+
 		a_horiz = plot_ground_track(τs)
 		a_horiz = draw_AC_horizontal(sim_out.times, τs, t, a_horiz, int_type)
+		a_horiz = add_RAs_horiz(τs, actions, a_horiz)
 		a_vert = plot_vertical_profile(sim_out.times, τs)
 		a_vert = draw_AC_vertical(sim_out.times, τs, t, a_vert, int_type)
+		a_vert = add_RAs_vertical(sim_out.times, τs, actions, a_vert)
 		a_horiz_info = get_horiz_info_plot(sim_out.times, τs, t)
 		a_vert_info = get_vert_info_plot(sim_out.times, τs, t)
 		g = GroupPlot(2,2,groupStyle = "horizontal sep=2cm, vertical sep=2cm")
