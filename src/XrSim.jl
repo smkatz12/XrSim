@@ -1,12 +1,12 @@
 function xr_sim!(sim::SIMULATION; enc_inds=[])
 	reset!(sim.sim_out)
-	#i = 1
 	# Load in the bin file to get dt, num_steps, and all of the encounters
 	open(sim.enc_file, "r") do f
 		dt = read(f, Float64)
 		num_steps = read(f, Int64)
 		# For each encounter
 		while !eof(f)
+			sim.curr_enc += 1
 			#println(i)
 			#i += 1
 			# Make an encounter out of info
@@ -22,7 +22,7 @@ function xr_sim!(sim::SIMULATION; enc_inds=[])
 			enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 			# Simulate the encounter
 			simulate_encounter!(enc)
-			update_output!(sim.sim_out, enc)
+			update_output!(sim, sim.sim_out, enc)
 		end
 		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
 	end
@@ -30,7 +30,6 @@ end
 
 function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64})
 	reset!(sim.sim_out)
-	ind = 1
 	enc_ind = 1
 	# Load in the bin file to get dt, num_steps, and all of the encounters
 	open(sim.enc_file, "r") do f
@@ -38,6 +37,7 @@ function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64})
 		num_steps = read(f, Int64)
 		# For each encounter
 		while !eof(f)
+			sim.curr_enc += 1
 			# Make an encounter out of info
 			for ac in sim.acs
 				reset!(ac)
@@ -47,18 +47,17 @@ function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64})
 				ac.z̈ = read_vector(f, num_steps)
 				#@show ac.z̈
 			end
-			if ind == enc_inds[enc_ind]
+			if sim.curr_enc == enc_inds[enc_ind]
 				enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
 				enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 				# Simulate the encounter
 				simulate_encounter!(enc)
-				update_output!(sim.sim_out, enc)
+				update_output!(sim, sim.sim_out, enc)
 				enc_ind += 1
 				if enc_ind > length(enc_inds)
 					break
 				end
 			end
-			ind += 1
 		end
 		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
 	end
@@ -94,16 +93,22 @@ function initialize_encounter_output(sim_out::SMALL_SIMULATION_OUTPUT, aircraft:
 	return pairwise_encounter_output()
 end
 
-function update_output!(sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::ENCOUNTER)
+function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::ENCOUNTER)
 	push!(sim_out.ac1_trajectories, enc.enc_out.ac1_trajectory)
 	push!(sim_out.ac2_trajectories, enc.enc_out.ac2_trajectory)
 	push!(sim_out.ac1_actions, enc.enc_out.ac1_actions)
 	push!(sim_out.ac2_actions, enc.enc_out.ac2_actions)
 end
 
-function update_output!(sim_out::SMALL_SIMULATION_OUTPUT, enc::ENCOUNTER)
-	is_nmac(enc.enc_out) ? sim_out.nmacs += 1 : nothing
-	is_alert(enc.enc_out) ? sim_out.alerts += 1 : nothing
+function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::ENCOUNTER)
+	if is_nmac(enc.enc_out) 
+		sim_out.nmacs += 1
+		push!(sim_out.nmac_inds, sim.curr_enc)
+	end
+	if is_alert(enc.enc_out)
+		sim_out.alerts += 1
+		push!(sim_out.alert_inds, sim.curr_enc)
+	end
 end
 
 function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
@@ -160,11 +165,13 @@ function simulate_encounter!(enc::ENCOUNTER)
 		# For each aircraft in the encounter
 		for ac in enc.aircraft
 			action = select_action(ac)
+			typeof(ac) == UAM_VERT ? println(action) : nothing
 			dynamics!(ac, action, enc.dt)
 			#typeof(ac) == UAM_VERT ? println("alerted: $(ac.alerted)") : nothing
 		end
 		# get next mdp state - mdp_state(phys_state)
 		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action)
+		println(ac1.curr_mdp_state)
 		ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action)
 		update_encounter_output!(enc.enc_out, enc.aircraft)
 	end
@@ -222,11 +229,15 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		#println("curr_v: $(curr_v[3])")
 		if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
         	next_az = 0
-	    elseif vlow > curr_v[3] + next_az 
-	        next_az = vlow - curr_v[3]
-	    elseif vhigh < curr_v[3] + next_az
-	        next_az = vhigh - curr_v[3]
-	    end
+	    else
+	    	# Figure out how to get out of the velocity range
+	    	next_az = abs(vlow) < abs(vhigh) ? -next_az : next_az
+	    	if vlow > curr_v[3] + next_az 
+		        next_az = vlow - curr_v[3]
+		    elseif vhigh < curr_v[3] + next_az
+		        next_az = vhigh - curr_v[3]
+		    end
+		end
 	end
 	#println("next_az: $next_az")
 	#should_print ? println("next_az: $next_az") : nothing

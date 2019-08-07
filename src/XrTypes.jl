@@ -109,7 +109,9 @@ end
 
 mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	nmacs::Int64
+	nmac_inds::Vector{Int64}
 	alerts::Int64
+	alert_inds::Vector{Int64}
 	times::Vector{Float64}
 end
 
@@ -176,10 +178,12 @@ function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
 										ac1_actions, ac2_actions, times)
 end
 
-function small_simulation_output(;nmacs = 0, 
+function small_simulation_output(;nmacs = 0,
+								nmac_inds = Vector{Int64}(), 
 								alerts = 0,
+								alert_inds = Vector{Int64}(),
 								times = Vector{Float64}())
-	return SMALL_SIMULATION_OUTPUT(nmacs, alerts, times)
+	return SMALL_SIMULATION_OUTPUT(nmacs, nmac_inds, alerts, alert_inds, times)
 end
 
 function pairwise_encounter_output(;ac1_trajectory = TRAJECTORY(),
@@ -193,7 +197,7 @@ end
 function simulation(;enc_file = "test.txt",
 					 acs = [unequipped(), unequipped()],
 					 sim_out = pairwise_simulation_output(),
-					 curr_enc = 1)
+					 curr_enc = 0)
 	return SIMULATION(enc_file, acs, sim_out, curr_enc)
 end
 
@@ -216,6 +220,8 @@ end
 
 function reset!(sim_out::SMALL_SIMULATION_OUTPUT)
 	sim_out.nmacs = 0
+	sim_out.nmac_inds = Vector{Int64}()
 	sim_out.alerts = 0
+	sim_out.alert_inds = Vector{Int64}()
 	sim_out.times = Vector{Float64}()
 end

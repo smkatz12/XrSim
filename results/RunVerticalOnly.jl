@@ -14,14 +14,15 @@ println("Simulating UAM vs. UAM (EU)...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam.bin"
+sim.enc_file = "data_files/uam_uam_v2.bin"
 sim.acs[1] = heuristic_vert()
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
     sheet["C7"] = sim.sim_out.nmacs
-    sheet["E7"] = sim.sim_out.alerts
+    sheet["D7"] = sim.sim_out.alerts
+    sheet["C11"] = sim.sim_out.nmacs/sheet["C6"]
 end
 
 println(sim.sim_out.nmacs)
@@ -29,14 +30,15 @@ println(sim.sim_out.alerts)
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam.bin"
+sim.enc_file = "data_files/uam_uam_v2.bin"
 sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
     sheet["C8"] = sim.sim_out.nmacs
-    sheet["E8"] = sim.sim_out.alerts
+    sheet["D8"] = sim.sim_out.alerts
+    sheet["C12"] = sim.sim_out.nmacs/sheet["C6"]
 end
 
 println(sim.sim_out.nmacs)
@@ -52,15 +54,16 @@ println("Simulating UAM vs. UAM (EE)...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam.bin"
+sim.enc_file = "data_files/uam_uam_v2.bin"
 sim.acs[1] = heuristic_vert()
 sim.acs[2] = heuristic_vert()
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["I7"] = sim.sim_out.nmacs
-    sheet["K7"] = sim.sim_out.alerts
+    sheet["G7"] = sim.sim_out.nmacs
+    sheet["H7"] = sim.sim_out.alerts
+    sheet["G11"] = sim.sim_out.nmacs/sheet["G6"]
 end
 
 println(sim.sim_out.nmacs)
@@ -68,15 +71,16 @@ println(sim.sim_out.alerts)
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam.bin"
+sim.enc_file = "data_files/uam_uam_v2.bin"
 sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
 sim.acs[2] = uam_vert(q_file = "data_files/closeness_noRev.bin")
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["I8"] = sim.sim_out.nmacs
-    sheet["K8"] = sim.sim_out.alerts
+    sheet["G8"] = sim.sim_out.nmacs
+    sheet["H8"] = sim.sim_out.alerts
+    sheet["G12"] = sim.sim_out.nmacs/sheet["G6"]
 end
 
 println(sim.sim_out.nmacs)
@@ -101,8 +105,9 @@ println(sim.sim_out.alerts)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["O7"] = sim.sim_out.nmacs
-    sheet["Q7"] = sim.sim_out.alerts
+    sheet["K7"] = sim.sim_out.nmacs
+    sheet["L7"] = sim.sim_out.alerts
+    sheet["K11"] = sim.sim_out.nmacs/sheet["K6"]
 end
 
 sim = simulation()
@@ -113,8 +118,9 @@ xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["O8"] = sim.sim_out.nmacs
-    sheet["Q8"] = sim.sim_out.alerts
+    sheet["K8"] = sim.sim_out.nmacs
+    sheet["L8"] = sim.sim_out.alerts
+    sheet["K12"] = sim.sim_out.nmacs/sheet["K6"]
 end
 
 println(sim.sim_out.nmacs)
@@ -137,7 +143,8 @@ xr_sim!(sim)
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
     sheet["C18"] = sim.sim_out.nmacs
-    sheet["E18"] = sim.sim_out.alerts
+    sheet["D18"] = sim.sim_out.alerts
+    sheet["C22"] = sim.sim_out.nmacs/sheet["C17"]
 end
 
 println(sim.sim_out.nmacs)
@@ -152,7 +159,8 @@ xr_sim!(sim)
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
     sheet["C19"] = sim.sim_out.nmacs
-    sheet["E19"] = sim.sim_out.alerts
+    sheet["D19"] = sim.sim_out.alerts
+    sheet["C23"] = sim.sim_out.nmacs/sheet["C17"]
 end
 
 println(sim.sim_out.nmacs)
@@ -174,8 +182,9 @@ xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["I18"] = sim.sim_out.nmacs
-    sheet["K18"] = sim.sim_out.alerts
+    sheet["G18"] = sim.sim_out.nmacs
+    sheet["H18"] = sim.sim_out.alerts
+    sheet["G22"] = sim.sim_out.nmacs/sheet["G17"]
 end
 
 println(sim.sim_out.nmacs)
@@ -189,9 +198,18 @@ xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
     sheet = xf[1]
-    sheet["I19"] = sim.sim_out.nmacs
-    sheet["K19"] = sim.sim_out.alerts
+    sheet["G19"] = sim.sim_out.nmacs
+    sheet["H19"] = sim.sim_out.alerts
+    sheet["G23"] = sim.sim_out.nmacs/sheet["G17"]
 end
 
 println(sim.sim_out.nmacs)
 println(sim.sim_out.alerts)
+
+"""
+-------------------------------------------
+Overall
+-------------------------------------------
+"""
+
+# Fill this in if you want to

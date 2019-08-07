@@ -45,7 +45,7 @@ a_prevs = collect(0:4) # Check this
 
 """
 -------------------------------------------
-Encounter viewer stuff
+Encounter Viewer Stuff
 -------------------------------------------
 """
 sc = ["ra_1={mark=none},ra_2={mark=o,blue},ra_3={mark=o,red},ra_4={mark=halfcircle*,red},ra_5={mark=*,red}"]
