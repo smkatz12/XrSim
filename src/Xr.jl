@@ -3,6 +3,7 @@ Xr.jl
 - main file for ACAS Xr sim
 """
 
+using LinearAlgebra
 using Distributions
 using GridInterpolations
 using Mmap

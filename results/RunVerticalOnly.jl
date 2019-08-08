@@ -3,6 +3,7 @@ using Random
 Random.seed!(24)
 
 output_filename = "results/Vertical_Only_Res.xlsx"
+q_file = "data_files/test.bin"
 
 """
 -------------------------------------------
@@ -31,7 +32,7 @@ println(sim.sim_out.alerts)
 sim = simulation()
 sim.sim_out = small_simulation_output()
 sim.enc_file = "data_files/uam_uam_v2.bin"
-sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
+sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
@@ -72,8 +73,8 @@ println(sim.sim_out.alerts)
 sim = simulation()
 sim.sim_out = small_simulation_output()
 sim.enc_file = "data_files/uam_uam_v2.bin"
-sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
-sim.acs[2] = uam_vert(q_file = "data_files/closeness_noRev.bin")
+sim.acs[1] = uam_vert(q_file = q_file)
+sim.acs[2] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
@@ -113,7 +114,7 @@ end
 sim = simulation()
 sim.sim_out = small_simulation_output()
 sim.enc_file = "data_files/uam_hd.bin"
-sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
+sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
@@ -153,7 +154,7 @@ println(sim.sim_out.alerts)
 sim = simulation()
 sim.sim_out = small_simulation_output()
 sim.enc_file = "data_files/uam_suas.bin"
-sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
+sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf
@@ -193,7 +194,7 @@ println(sim.sim_out.alerts)
 sim = simulation()
 sim.sim_out = small_simulation_output()
 sim.enc_file = "data_files/uam_manned.bin"
-sim.acs[1] = uam_vert(q_file = "data_files/closeness_noRev.bin")
+sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
 XLSX.openxlsx(output_filename, mode="rw") do xf

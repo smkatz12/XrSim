@@ -155,8 +155,8 @@ function simulate_encounter!(enc::ENCOUNTER)
 	ac1 = enc.aircraft[1]
 	ac2 = enc.aircraft[2]
 	# Get initial state (physical and mdp) and set it to current state
-	ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action)
-	ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action)
+	ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action, enc.dt)
+	ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action, enc.dt)
 	# println(ac1.curr_mdp_state)
 	# println(ac2.curr_mdp_state)
 	# Get encounter length
@@ -170,35 +170,45 @@ function simulate_encounter!(enc::ENCOUNTER)
 			#typeof(ac) == UAM_VERT ? println("alerted: $(ac.alerted)") : nothing
 		end
 		# get next mdp state - mdp_state(phys_state)
-		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action)
+		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action, enc.dt)
 		println(ac1.curr_mdp_state)
-		ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action)
+		ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action, enc.dt)
 		update_encounter_output!(enc.enc_out, enc.aircraft)
 	end
 end
 
-function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra::Int64)
+function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra::Int64, dt::Float64)
 	h = int_state.p[3] - own_state.p[3]
 	ḣ₀ = own_state.v[3]
 	ḣ₁ = int_state.v[3]
 
-	# Figure out τ
-	# Shift intruder to be relative to ownship at the origin
+	# # Figure out τ
+	# # Shift intruder to be relative to ownship at the origin
+	# p₁ = [int_state.p[1], int_state.p[2]]
+	# p₀ = [own_state.p[1], own_state.p[2]]
+	# p₁shift = p₁ - p₀
+	# # Rotate intuder velocity to be relative to ownship heading of zero degrees
+	# v₁ = [int_state.v[1], int_state.v[2]]
+	# v₀ = [own_state.v[1], own_state.v[2]]
+	# if any(v₁ .> 1e-8) && any(v₀ .> 1e-8)
+	# 	rot_ang = -atand(own_state.v[2], own_state.v[1])
+	# 	R = [cosd(rot_ang) -sind(rot_ang); sind(rot_ang) cosd(rot_ang)]
+	# 	v₁rot = R*v₁
+	# 	# Figure out when y-value is zero now
+	# 	τ = -p₁shift[2]/v₁rot[2]
+	# else
+	# 	τ = Inf
+	# end
+
+	# Figure out tau in a way that actually makes sense (unlike above :) )
 	p₁ = [int_state.p[1], int_state.p[2]]
 	p₀ = [own_state.p[1], own_state.p[2]]
-	p₁shift = p₁ - p₀
-	# Rotate intuder velocity to be relative to ownship heading of zero degrees
 	v₁ = [int_state.v[1], int_state.v[2]]
 	v₀ = [own_state.v[1], own_state.v[2]]
-	if any(v₁ .> 1e-8) && any(v₀ .> 1e-8)
-		rot_ang = -atand(own_state.v[2], own_state.v[1])
-		R = [cosd(rot_ang) -sind(rot_ang); sind(rot_ang) cosd(rot_ang)]
-		v₁rot = R*v₁
-		# Figure out when y-value is zero now
-		τ = -p₁shift[2]/v₁rot[2]
-	else
-		τ = Inf
-	end
+	r = norm(p₁ - p₀)
+	r_next = norm((p₁ + v₁*dt) - (p₀ + v₀*dt))
+	ṙ = r - r_next
+	τ = r < 500ft2m ? 0 : (r - 500ft2m)/ṙ
 
 	if τ < 0
 		τ = Inf
@@ -221,6 +231,7 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 
 	if !ac.alerted # Follow flight path
 		next_az = ac.z̈[ac.curr_step]
+		next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
 	else # Determine acceleration based on current ra
 		# Sample an acceleration
 		next_az = rand(acceleration_dist)
@@ -238,14 +249,20 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		        next_az = vhigh - curr_v[3]
 		    end
 		end
+		next_v_curr_a = curr_v + curr_a*dt
+		slowing_down = norm(next_v_curr_a[1:2]) < norm(curr_v[1:2])
+		if slowing_down
+			next_a = [0.0, 0.0, next_az] 
+		else
+			next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
+		end
 	end
 	#println("next_az: $next_az")
 	#should_print ? println("next_az: $next_az") : nothing
-    next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
+    
 	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
 	next_v = curr_v + next_a*dt
 	#should_print ? println("next_v: $next_v") : nothing
-
 	ac.curr_phys_state = PHYSICAL_STATE(next_p, next_v, next_a)
 	#should_print ? println(ac.curr_phys_state.v) : nothing
 	ac.curr_step += 1

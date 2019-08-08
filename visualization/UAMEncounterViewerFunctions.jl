@@ -25,11 +25,45 @@ function plot_ground_track(τs::Vector{TRAJECTORY})
 	return a
 end
 
+function plot_side_track(τs::Vector{TRAJECTORY})
+	# Initialize plot object
+	a = Axis()
+
+	#a.axisEqual = true
+
+	# Iterate through aircraft and plot the trajectories
+	for i = 1:length(τs)
+		x, y, z = convert_to_xyz(τs[i])
+		dist = get_distances(τs[i])
+		push!(a, Plots.Linear(dist, z, mark="none", style="black"))
+        a.xlabel = "Distance (m)"
+        a.ylabel = "Altitude (ft)"
+        a.title = "Vertical Profile"
+	end
+	return a
+end
+
 function convert_to_xyz(τ::TRAJECTORY)
 	x = [τ[i].p[1] for i = 1:length(τ)]
 	y = [τ[i].p[2] for i = 1:length(τ)]
 	z = [τ[i].p[3] for i = 1:length(τ)]
 	return x, y, z
+end
+
+function convert_to_vxyz(τ::TRAJECTORY)
+	vx = [τ[i].v[1] for i = 1:length(τ)]
+	vy = [τ[i].v[2] for i = 1:length(τ)]
+	vz = [τ[i].v[3] for i = 1:length(τ)]
+	return vx, vy, vz
+end
+
+function get_distances(τ)
+	vx, vy, vz = convert_to_vxyz(τ)
+	d = [0.0]
+	for i = 2:length(τ)
+		push!(d, d[i-1] + norm([vx[i-1], vy[i-1]]))
+	end
+	return d
 end
 
 """
@@ -63,7 +97,7 @@ function get_horiz_range(times, τs::Vector{TRAJECTORY}, t::Float64)
 	x1 = τs[2][t_idx].p[1]
 	y0 = τs[1][t_idx].p[2]
 	y1 = τs[2][t_idx].p[2]
-	return sqrt((x1-x0)^2+(y1-y0)^2)
+	return sqrt((x1-x0)^2+(y1-y0)^2)*3.28084
 end
 
 """
@@ -205,6 +239,26 @@ function draw_AC_vertical(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, i
 	return a
 end
 
+function draw_AC_side(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
+	# First, figure out index that the specified time corresponds to
+	t_idx = findfirst(t .<= times)
+	# Next, loop through AC and draw them
+	heading = 0
+	for i = 1:length(τs)
+		xs, ys, zs = convert_to_xyz(τs[i])
+		dist = get_distances(τs[i])
+		# Get location of aircraft
+		x = dist[t_idx]
+		y = zs[t_idx]
+		if i > 1 && intType == :quad
+			push!(a, Plots.Command(get_quad_string_side(heading,x,y,"black","black")))
+		else
+			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"black","white")))
+		end
+	end
+	return a
+end
+
 """
 function getHorizInfoPlot
 	- returns a plot that will update with info about the current state
@@ -247,6 +301,16 @@ function add_RAs_vertical(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION
 	return a
 end
 
+function add_RAs_side(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis)
+	for i = 1:length(τs)
+		x, y, ni = convert_to_xyz(τs[i])
+		dist = get_distances(τs[i])
+		z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+		push!(a, Plots.Scatter(dist, ni, z, scatterClasses=sc))
+	end
+	return a
+end
+
 """
 function encounter_viewer
 	- function that actually creates the interactive encounter viewer
@@ -277,6 +341,9 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC)
 		a_vert = plot_vertical_profile(sim_out.times, τs)
 		a_vert = draw_AC_vertical(sim_out.times, τs, t, a_vert, int_type)
 		a_vert = add_RAs_vertical(sim_out.times, τs, actions, a_vert)
+		# a_vert = plot_side_track(τs)
+		# a_vert = draw_AC_side(sim_out.times, τs, t, a_vert, int_type)
+		# a_vert = add_RAs_side(sim_out.times, τs, actions, a_vert)
 		a_horiz_info = get_horiz_info_plot(sim_out.times, τs, t)
 		a_vert_info = get_vert_info_plot(sim_out.times, τs, t)
 		g = GroupPlot(2,2,groupStyle = "horizontal sep=2cm, vertical sep=2cm")
