@@ -165,13 +165,13 @@ function simulate_encounter!(enc::ENCOUNTER)
 		# For each aircraft in the encounter
 		for ac in enc.aircraft
 			action = select_action(ac)
-			typeof(ac) == UAM_VERT ? println(action) : nothing
+			#typeof(ac) == UAM_VERT ? println(action) : nothing
 			dynamics!(ac, action, enc.dt)
 			#typeof(ac) == UAM_VERT ? println("alerted: $(ac.alerted)") : nothing
 		end
 		# get next mdp state - mdp_state(phys_state)
 		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action, enc.dt)
-		println(ac1.curr_mdp_state)
+		#println(ac1.curr_mdp_state)
 		ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action, enc.dt)
 		update_encounter_output!(enc.enc_out, enc.aircraft)
 	end

@@ -15,7 +15,7 @@ println("Simulating UAM vs. UAM (EU)...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam_v2.bin"
+sim.enc_file = "data_files/uam_uam_fixed.bin"
 sim.acs[1] = heuristic_vert()
 xr_sim!(sim)
 
@@ -55,7 +55,7 @@ println("Simulating UAM vs. UAM (EE)...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam_v2.bin"
+sim.enc_file = "data_files/uam_uam_fixed.bin"
 sim.acs[1] = heuristic_vert()
 sim.acs[2] = heuristic_vert()
 xr_sim!(sim)
@@ -72,7 +72,7 @@ println(sim.sim_out.alerts)
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_uam_v2.bin"
+sim.enc_file = "data_files/uam_uam_fixed.bin"
 sim.acs[1] = uam_vert(q_file = q_file)
 sim.acs[2] = uam_vert(q_file = q_file)
 xr_sim!(sim)
@@ -97,7 +97,7 @@ println("Simulating UAM vs. Hobby Drone...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_hd.bin"
+sim.enc_file = "data_files/uam_hd_fixed.bin"
 sim.acs[1] = heuristic_vert()
 xr_sim!(sim)
 
@@ -113,7 +113,7 @@ end
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_hd.bin"
+sim.enc_file = "data_files/uam_hd_fixed.bin"
 sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
@@ -137,7 +137,7 @@ println("Simulating UAM vs. sUAS...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_suas.bin"
+sim.enc_file = "data_files/uam_suas_fixed.bin"
 sim.acs[1] = heuristic_vert()
 xr_sim!(sim)
 
@@ -153,7 +153,7 @@ println(sim.sim_out.alerts)
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_suas.bin"
+sim.enc_file = "data_files/uam_suas_fixed.bin"
 sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
@@ -177,7 +177,7 @@ println("Simulating UAM vs. Manned...")
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_manned.bin"
+sim.enc_file = "data_files/uam_manned_fixed.bin"
 sim.acs[1] = heuristic_vert()
 xr_sim!(sim)
 
@@ -193,7 +193,7 @@ println(sim.sim_out.alerts)
 
 sim = simulation()
 sim.sim_out = small_simulation_output()
-sim.enc_file = "data_files/uam_manned.bin"
+sim.enc_file = "data_files/uam_manned_fixed.bin"
 sim.acs[1] = uam_vert(q_file = q_file)
 xr_sim!(sim)
 
