@@ -204,6 +204,8 @@ function draw_AC_horizontal(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis,
 		heading = atand(ẏ, ẋ) # Check if degrees is correct!!!!
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_top(heading,x,y,"black","black")))
+		elseif i == 1
+			push!(a, Plots.Command(get_AC_string_top(heading,x,y,"teal","white")))
 		else
 			push!(a, Plots.Command(get_AC_string_top(heading,x,y,"black","white")))
 		end
@@ -232,6 +234,8 @@ function draw_AC_vertical(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, i
 		y = τs[i][t_idx].p[3]
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_side(heading,x,y,"black","black")))
+		elseif i == 1
+			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"teal","white")))
 		else
 			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"black","white")))
 		end
@@ -252,6 +256,8 @@ function draw_AC_side(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, intTy
 		y = zs[t_idx]
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_side(heading,x,y,"black","black")))
+		elseif i == 1
+			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"teal","white")))
 		else
 			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"black","white")))
 		end

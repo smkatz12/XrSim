@@ -4,6 +4,7 @@ Xr.jl
 """
 
 using LinearAlgebra
+using Random
 using Distributions
 using GridInterpolations
 using Mmap

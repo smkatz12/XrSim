@@ -18,6 +18,11 @@ struct MDP_STATE
 	τ::Float64
 end
 
+struct BELIEF_STATE
+	states::Vector{MDP_STATE}
+	probs::Vector{Float64}
+end
+
 TRAJECTORY = Vector{PHYSICAL_STATE}
 ACTION_SEQUENCE = Vector{Int64}
 
