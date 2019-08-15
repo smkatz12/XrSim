@@ -164,6 +164,7 @@ function unequipped(;ẍ = Vector{Float64}(),
 					 curr_step = 1)
 	return UNEQUIPPED(ẍ, ÿ, z̈, curr_action, curr_belief_state, 
 						curr_phys_state, alerted, responsive, curr_step)
+					 curr_step = 1)
 end
 
 function uam_vert(;ẍ = Vector{Float64}(),
