@@ -2,7 +2,7 @@ using XLSX
 using Random
 Random.seed!(24)
 
-output_filename = "results/Vertical_Only_Res.xlsx"
+output_filename = "results/Xr_Results.xlsx"
 q_file = "data_files/test.bin"
 
 num_nmacs_h = 0

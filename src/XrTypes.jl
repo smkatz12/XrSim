@@ -41,6 +41,10 @@ function mdp_state(;h = 0.0, ḣ₀ = 0.0, ḣ₁ = 0.0, a_prev = 1, τ=0.0)
 	return MDP_STATE(h, ḣ₀, ḣ₁, a_prev, τ)
 end
 
+function belief_state(;states = Vector{MDP_STATE}(), probs = Vector{Float64}())
+	return BELIEF_STATE(states, probs)
+end
+
 """
 -------------------------------------------
 Simulation Objects
@@ -54,7 +58,7 @@ mutable struct UNEQUIPPED <: AIRCRAFT
 	ÿ::Vector{Float64}
 	z̈::Vector{Float64}
 	curr_action::Int64
-	curr_mdp_state::MDP_STATE
+	curr_belief_state::BELIEF_STATE
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	curr_step::Int64
@@ -65,7 +69,20 @@ mutable struct UAM_VERT <: AIRCRAFT
 	ÿ::Vector{Float64}
 	z̈::Vector{Float64}
 	curr_action::Int64
-	curr_mdp_state::MDP_STATE
+	curr_belief_state::BELIEF_STATE
+	curr_phys_state::PHYSICAL_STATE
+	alerted::Bool
+	curr_step::Int64
+	grid::RectangleGrid
+	qmat::Array{Float64,2}
+end
+
+mutable struct UAM_VERT_PO <: AIRCRAFT
+	ẍ::Vector{Float64}
+	ÿ::Vector{Float64}
+	z̈::Vector{Float64}
+	curr_action::Int64
+	curr_belief_state::BELIEF_STATE
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	curr_step::Int64
@@ -78,7 +95,7 @@ mutable struct HEURISTIC_VERT <: AIRCRAFT
 	ÿ::Vector{Float64}
 	z̈::Vector{Float64}
 	curr_action::Int64
-	curr_mdp_state::MDP_STATE
+	curr_belief_state::BELIEF_STATE
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	curr_step::Int64
@@ -136,11 +153,11 @@ function unequipped(;ẍ = Vector{Float64}(),
 					 ÿ = Vector{Float64}(),
 					 z̈ = Vector{Float64}(),
 					 curr_action = COC,
-					 curr_mdp_state = mdp_state(),
+					 curr_belief_state = belief_state(),
 					 curr_phys_state = physical_state(),
 					 alerted = false,
 					 curr_step = 1)
-	return UNEQUIPPED(ẍ, ÿ, z̈, curr_action, curr_mdp_state, 
+	return UNEQUIPPED(ẍ, ÿ, z̈, curr_action, curr_belief_state, 
 						curr_phys_state, alerted, curr_step)
 end
 
@@ -148,7 +165,7 @@ function uam_vert(;ẍ = Vector{Float64}(),
 				   ÿ = Vector{Float64}(),
 				   z̈ = Vector{Float64}(),
 				   curr_action = COC,
-				   curr_mdp_state = mdp_state(),
+				   curr_belief_state = belief_state(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   curr_step = 1,
@@ -158,7 +175,25 @@ function uam_vert(;ẍ = Vector{Float64}(),
 	m = read(s, Int)
 	n = read(s, Int)
 	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
-	return UAM_VERT(ẍ, ÿ, z̈, curr_action, curr_mdp_state, curr_phys_state, 
+	return UAM_VERT(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
+						alerted, curr_step, grid, qmat)
+end
+
+function uam_vert_po(;ẍ = Vector{Float64}(),
+				   ÿ = Vector{Float64}(),
+				   z̈ = Vector{Float64}(),
+				   curr_action = COC,
+				   curr_belief_state = belief_state(),
+				   curr_phys_state = physical_state(),
+				   alerted = false,
+				   curr_step = 1,
+				   q_file = "data_files/xr_vert.bin",
+				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs))
+	s = open(q_file)
+	m = read(s, Int)
+	n = read(s, Int)
+	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
+	return UAM_VERT_PO(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
 						alerted, curr_step, grid, qmat)
 end
 
@@ -166,11 +201,11 @@ function heuristic_vert(;ẍ = Vector{Float64}(),
 				   ÿ = Vector{Float64}(),
 				   z̈ = Vector{Float64}(),
 				   curr_action = COC,
-				   curr_mdp_state = mdp_state(),
+				   curr_belief_state = belief_state(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   curr_step = 1)
-	return HEURISTIC_VERT(ẍ, ÿ, z̈, curr_action, curr_mdp_state, curr_phys_state, 
+	return HEURISTIC_VERT(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
 						alerted, curr_step)
 end
 

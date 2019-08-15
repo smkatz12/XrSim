@@ -146,8 +146,8 @@ function simulate_encounter!(enc::ENCOUNTER; verbose=false)
 	ac1 = enc.aircraft[1]
 	ac2 = enc.aircraft[2]
 	# Get initial state (physical and mdp) and set it to current state
-	ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action, enc.dt)
-	ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action, enc.dt)
+	ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
+	ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
 	# Get encounter length
 	# For each time step in the encounter
 	for i = 1:enc.num_steps
@@ -158,11 +158,36 @@ function simulate_encounter!(enc::ENCOUNTER; verbose=false)
 			dynamics!(ac, action, enc.dt)
 		end
 		# get next mdp state - mdp_state(phys_state)
-		ac1.curr_mdp_state = get_mdp_state(ac1.curr_phys_state, ac2.curr_phys_state, ac1.curr_action, enc.dt)
-		verbose ? println(ac1.curr_mdp_state) : nothing
-		ac2.curr_mdp_state = get_mdp_state(ac2.curr_phys_state, ac1.curr_phys_state, ac2.curr_action, enc.dt)
+		ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
+		verbose ? println(ac1.curr_belief_state) : nothing
+		ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
 		update_encounter_output!(enc.enc_out, enc.aircraft)
 	end
+end
+
+# Fully observable
+function get_belief_state(ownship::Union{UNEQUIPPED, HEURISTIC_VERT, UAM_VERT}, intruder::AIRCRAFT, dt::Float64)
+	return BELIEF_STATE([get_mdp_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])
+end
+
+# Partially observable (just τ for now)
+function get_belief_state(ownship::UAM_VERT_PO, intruder::AIRCRAFT, dt::Float64)
+	own_state = ownship.curr_phys_state
+	int_state = intruder.curr_phys_state
+
+	turns = [-8.0, 0.0, 8.0]
+	turn_probs = [0.2, 0.6, 0.2]
+
+	states = Vector{MDP_STATE}()
+	probs = Vector{Float64}()
+
+	for i = 1:length(turns)
+		for j = 1:length(turns)
+			push!(states, get_mdp_state_turn(own_state, int_state, turns[i], turns[j], ownship.curr_action, dt))
+			push!(probs, turn_probs[i]*turn_probs[j])
+		end
+	end
+	return BELIEF_STATE(states, probs)
 end
 
 function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra::Int64, dt::Float64)
@@ -177,6 +202,30 @@ function get_mdp_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra
 	v₀ = [own_state.v[1], own_state.v[2]]
 	r = norm(p₁ - p₀)
 	r_next = norm((p₁ + v₁*dt) - (p₀ + v₀*dt))
+	ṙ = r - r_next
+	τ = r < 500ft2m ? 0 : (r - 500ft2m)/ṙ
+
+	if τ < 0
+		τ = Inf
+	end
+
+	return MDP_STATE(h, ḣ₀, ḣ₁, pra, τ)
+end
+
+function get_mdp_state_turn(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, turn_rate_own::Float64, turn_rate_int::Float64, pra::Int64, dt::Float64)
+	h = int_state.p[3] - own_state.p[3]
+	ḣ₀ = own_state.v[3]
+	ḣ₁ = int_state.v[3]
+
+	# Figure out tau (NOTE: approximating turning by instant heading change)
+	p₁ = [int_state.p[1], int_state.p[2]]
+	p₀ = [own_state.p[1], own_state.p[2]]
+	v₁ = [int_state.v[1], int_state.v[2]]
+	v₁rot = rotate_vec(v₁, turn_rate_int*dt)
+	v₀ = [own_state.v[1], own_state.v[2]]
+	v₀rot = rotate_vec(v₀, turn_rate_own*dt)
+	r = norm(p₁ - p₀)
+	r_next = norm((p₁ + v₁rot*dt) - (p₀ + v₀rot*dt))
 	ṙ = r - r_next
 	τ = r < 500ft2m ? 0 : (r - 500ft2m)/ṙ
 
@@ -237,7 +286,7 @@ function reset!(ac::AIRCRAFT)
 	ac.ÿ = Vector{Float64}()
 	ac.z̈ = Vector{Float64}()
 	ac.curr_action = COC
-	ac.curr_mdp_state = mdp_state()
+	ac.curr_belief_state = belief_state()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
 	ac.curr_step = 1
@@ -250,3 +299,9 @@ end
 function convert_to_grid_state(s::MDP_STATE)
 	return [s.h, s.ḣ₀, s.ḣ₁, s.a_prev, s.τ]
 end
+
+function rotate_vec(v::Vector, θ::Float64)
+	rot_mat = [cosd(θ) -sind(θ); sind(θ) cosd(θ)]
+	return rot_mat*v
+end
+

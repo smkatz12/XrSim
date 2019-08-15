@@ -2,14 +2,32 @@ function select_action(ac::UNEQUIPPED)
 	return COC
 end
 
-function select_action(ac::UAM_VERT)
-	states, probs = interpolants(ac.grid, convert_to_grid_state(ac.curr_mdp_state))
-	s = states[argmax(probs)]
-	return argmax(ac.qmat[s,:]) - 1 # Off by 1 due to indexing at 1
+# function select_action(ac::UAM_VERT)
+# 	states, probs = interpolants(ac.grid, convert_to_grid_state(ac.curr_mdp_state))
+# 	s = states[argmax(probs)]
+# 	return argmax(ac.qmat[s,:]) - 1 # Off by 1 due to indexing at 1
+# end
+
+function select_action(ac::Union{UAM_VERT, UAM_VERT_PO})
+	bs = ac.curr_belief_state
+	q = zeros(size(ac.qmat, 2))
+	for i = 1:length(bs.states)
+		q .+= bs.probs[i]*interp_q(ac, bs.states[i])
+	end
+	return argmax(q) - 1 # Off by 1 due to indexing at 1
+end
+
+function interp_q(ac::AIRCRAFT, state::MDP_STATE)
+	states, probs = interpolants(ac.grid, convert_to_grid_state(state))
+	q = zeros(size(ac.qmat, 2))
+	for i = 1:length(states)
+		q .+= probs[i]*ac.qmat[states[i],:]
+	end
+	return q
 end
 
 function select_action(ac::HEURISTIC_VERT)
-	mdp_state = ac.curr_mdp_state
+	mdp_state = ac.curr_belief_state.states[1]
 	return heuristic_vert(mdp_state)
 end
 
