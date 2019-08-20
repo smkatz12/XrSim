@@ -108,7 +108,7 @@ function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 	τ₀ = enc_out.ac1_trajectory
 	τ₁ = enc_out.ac2_trajectory
 
-	for i = 1:length(τ₀)
+	for i = 30:length(τ₀)
 		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
 		v_sep = get_vert_sep(τ₀[i], τ₁[i])
 		nmac = h_sep < 500ft2m && v_sep < 100ft2m
