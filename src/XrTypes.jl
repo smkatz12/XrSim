@@ -8,12 +8,26 @@ struct PHYSICAL_STATE
 	p::Vector{Float64} # (m, m, ft)
 	v::Vector{Float64} # (m/s, m/s, ft/s)
 	a::Vector{Float64} # (m/s², m/s², ft/s²)
+	h::Float64 # radians
 end
 
-struct MDP_STATE
+abstract type MDP_STATE
+end
+
+struct VERT_STATE <: MDP_STATE
 	h::Float64
 	ḣ₀::Float64
 	ḣ₁::Float64
+	a_prev::Int64
+	τ::Float64
+end
+
+struct SPEED_STATE <: MDP_STATE
+	r::Float64
+	θ::Float64
+	ψ::Float64
+	v₀::Float64
+	v₁::Float64
 	a_prev::Int64
 	τ::Float64
 end
@@ -33,12 +47,17 @@ Constructors
 """
 function physical_state(;p = Vector{Float64}(),
 						 v = Vector{Float64}(),
-						 a = Vector{Float64}())
-	return PHYSICAL_STATE(p, v, a)
+						 a = Vector{Float64}(),
+						 h = 0.0)
+	return PHYSICAL_STATE(p, v, a, h)
 end
 
-function mdp_state(;h = 0.0, ḣ₀ = 0.0, ḣ₁ = 0.0, a_prev = 1, τ=0.0)
-	return MDP_STATE(h, ḣ₀, ḣ₁, a_prev, τ)
+function vert_state(;h = 0.0, ḣ₀ = 0.0, ḣ₁ = 0.0, a_prev = 1, τ=0.0)
+	return VERT_STATE(h, ḣ₀, ḣ₁, a_prev, τ)
+end
+
+function speed_state(;r = 0.0, θ = 0.0, ψ = 0.0, v₀=0.0, v₁=0.0, a_prev = 1, τ=0.0)
+	return SPEED_STATE(r, θ, ψ, v₀, v₁, a_prev, τ)
 end
 
 function belief_state(;states = Vector{MDP_STATE}(), probs = Vector{Float64}())
@@ -80,6 +99,20 @@ mutable struct UAM_VERT <: AIRCRAFT
 end
 
 mutable struct UAM_VERT_PO <: AIRCRAFT
+	ẍ::Vector{Float64}
+	ÿ::Vector{Float64}
+	z̈::Vector{Float64}
+	curr_action::Int64
+	curr_belief_state::BELIEF_STATE
+	curr_phys_state::PHYSICAL_STATE
+	alerted::Bool
+	responsive::Bool
+	curr_step::Int64
+	grid::RectangleGrid
+	qmat::Array{Float64,2}
+end
+
+mutable struct UAM_SPEED <: AIRCRAFT
 	ẍ::Vector{Float64}
 	ÿ::Vector{Float64}
 	z̈::Vector{Float64}
@@ -176,7 +209,7 @@ function uam_vert(;ẍ = Vector{Float64}(),
 				   responsive = true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
-				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs))
+				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
@@ -195,12 +228,31 @@ function uam_vert_po(;ẍ = Vector{Float64}(),
 				   responsive = true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
-				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs))
+				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
 	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
 	return UAM_VERT_PO(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
+						alerted, responsive, curr_step, grid, qmat)
+end
+
+function uam_speed(;ẍ = Vector{Float64}(),
+				   ÿ = Vector{Float64}(),
+				   z̈ = Vector{Float64}(),
+				   curr_action = COC,
+				   curr_belief_state = belief_state(),
+				   curr_phys_state = physical_state(),
+				   alerted = false,
+				   responsive = true,
+				   curr_step = 1,
+				   q_file = "data_files/xr_speed.bin",
+				   grid = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed))
+	s = open(q_file)
+	m = read(s, Int)
+	n = read(s, Int)
+	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
+	return UAM_SPEED(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
 						alerted, responsive, curr_step, grid, qmat)
 end
 

@@ -8,7 +8,7 @@ end
 # 	return argmax(ac.qmat[s,:]) - 1 # Off by 1 due to indexing at 1
 # end
 
-function select_action(ac::Union{UAM_VERT, UAM_VERT_PO})
+function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED})
 	bs = ac.curr_belief_state
 	q = zeros(size(ac.qmat, 2))
 	for i = 1:length(bs.states)

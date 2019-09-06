@@ -14,12 +14,14 @@ using Colors
 using ColorBrewer
 using Printf
 
+# Add to latex preamble so we can use the aircraft shapes package
+if !@isdefined sc_vert
+	pushPGFPlotsPreamble("\\usepackage{aircraftshapes}")
+end
+
 # using UAMEncounterGenerator
 include("../src/XrTypes.jl")
 include("./UAMEncounterViewerFunctions.jl")
-
-# Add to latex preamble so we can use the aircraft shapes package
-pushPGFPlotsPreamble("\\usepackage{aircraftshapes}")
 
 # end # module UAMEncounterViewer
 
