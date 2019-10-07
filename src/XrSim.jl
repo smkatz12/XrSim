@@ -130,8 +130,25 @@ function get_vert_sep(ps₀, ps₁)
 end
 
 function is_alert(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
-	alert₀ = any(enc_out.ac1_actions .> 0)
-	alert₁ = any(enc_out.ac2_actions .> 0)
+	if length(enc_out.ac1_actions[1]) > 1
+		alert₀ = false
+		alert₁ = false
+		for i = 1:length(enc_out.ac1_actions)
+			if any(enc_out.ac1_actions[i] .> 0)
+				alert₀ = true
+				break
+			end
+		end
+		for i = 1:length(enc_out.ac2_actions)
+			if any(enc_out.ac2_actions[i] .> 0)
+				alert₁ = true
+				break
+			end
+		end
+	else
+		alert₀ = any(enc_out.ac1_actions .> 0)
+		alert₁ = any(enc_out.ac2_actions .> 0)
+	end
 	return alert₀ || alert₁
 end
 
@@ -180,6 +197,11 @@ function get_belief_state(ownship::UAM_SPEED, intruder::AIRCRAFT, dt::Float64)
 	return BELIEF_STATE([get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])
 end
 
+function get_belief_state(ownship::UAM_BLENDED, intruder::AIRCRAFT, dt::Float64)
+	return [BELIEF_STATE([get_vert_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0]),
+			BELIEF_STATE([get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])]
+end
+
 # Partially observable (just τ for now)
 function get_belief_state(ownship::UAM_VERT_PO, intruder::AIRCRAFT, dt::Float64)
 	own_state = ownship.curr_phys_state
@@ -200,7 +222,7 @@ function get_belief_state(ownship::UAM_VERT_PO, intruder::AIRCRAFT, dt::Float64)
 	return BELIEF_STATE(states, probs)
 end
 
-function get_vert_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra::Int64, dt::Float64)
+function get_vert_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_prev::ACTION, dt::Float64)
 	h = int_state.p[3] - own_state.p[3]
 	ḣ₀ = own_state.v[3]
 	ḣ₁ = int_state.v[3]
@@ -219,11 +241,13 @@ function get_vert_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pr
 		τ = Inf
 	end
 
+	pra = length(a_prev) > 1 ? a_prev[1] : a_prev
+
 	return VERT_STATE(h, ḣ₀, ḣ₁, pra, τ)
 end
 
 # NOTE: I was dumb with units and I think I need to convert everything horizontal from m to ft
-function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, pra::Int64, dt::Float64)
+function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_prev::ACTION, dt::Float64)
 	p = (int_state.p[1:2] - own_state.p[1:2])*m2ft
 	r = norm(p)
 
@@ -248,6 +272,8 @@ function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, p
 	if τ < 0.0
 		τ = Inf
 	end
+
+	pra = length(a_prev) > 1 ? a_prev[2] : a_prev
 
 	return SPEED_STATE(r, θ, ψ, v₀, v₁, pra, τ)
 end
@@ -366,6 +392,74 @@ function dynamics!(ac::UAM_SPEED, action::Int64, dt::Float64)
 	ac.curr_step += 1
 end
 
+function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)		
+	ac.curr_action = action
+	curr_p = ac.curr_phys_state.p
+	curr_v = ac.curr_phys_state.v
+	curr_a = ac.curr_phys_state.a
+	curr_h = ac.curr_phys_state.h
+
+	any(action .> COC) ? ac.alerted = true : nothing
+	action[1] > COC ? ac.alerted_vert = true : nothing
+	action[2] > COC ? ac.alerted_speed = true : nothing
+
+	if !ac.alerted || !ac.responsive # Follow flight path
+		next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], ac.z̈[ac.curr_step]]
+	else # Determine acceleration based on current ra
+		# Deal with vertical first ########################################
+		if !ac.alerted_vert
+			next_az = ac.z̈[ac.curr_step]
+		else
+			next_az = rand(acceleration_dist_vert)
+			vlow, vhigh = vel_ranges[action[1]]
+			if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
+	        	next_az = 0
+		    else
+		    	# Figure out how to get out of the velocity range
+		    	next_az = abs(vlow) < abs(vhigh) ? -next_az : next_az
+		    	if vlow > curr_v[3] + next_az 
+			        next_az = vlow - curr_v[3]
+			    elseif vhigh < curr_v[3] + next_az
+			        next_az = vhigh - curr_v[3]
+			    end
+			end
+		end
+		# Now deal with speed ########################################
+		if !ac.alerted_speed
+			next_ax = ac.ẍ[ac.curr_step]
+			next_ay = ac.ÿ[ac.curr_step]
+		else
+			# Sample acceleration noise
+			accel_noise = rand(acceleration_noise_speed)
+			accel = (accels_speed[action[2]] + accel_noise)*accels_speed[action[2]] < 0.0 ? 
+					0.0 : accels_speed[action[2]] + accel_noise
+
+			curr_speed = norm(curr_v[1:2])
+			# Just make sure we do not go out of range 
+			# *(may want to add this in speed mdp transition model)*
+			if curr_speed + accel > speed_max
+				accel = speed_max - curr_speed
+			elseif curr_speed + accel < speed_min
+				accel = speed_min - curr_speed
+			end
+
+			v_angle = atan(curr_v[2], curr_v[1])
+			next_ax = accel*cos(v_angle)
+			next_ay = accel*sin(v_angle)
+		end
+		# Put it all together
+		next_a = [next_ax, next_ay, next_az]
+	end
+
+	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
+	next_v = curr_v + next_a*dt
+	next_h = norm(next_v[1:2]) > 1e-9 ? atan(next_v[2], next_v[1]) : curr_h
+
+	ac.curr_phys_state = PHYSICAL_STATE(next_p, next_v, next_a, next_h)
+
+	ac.curr_step += 1
+end
+
 function reset!(ac::AIRCRAFT)
 	ac.ẍ = Vector{Float64}()
 	ac.ÿ = Vector{Float64}()
@@ -374,6 +468,19 @@ function reset!(ac::AIRCRAFT)
 	ac.curr_belief_state = belief_state()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
+	ac.curr_step = 1
+end
+
+function reset!(ac::UAM_BLENDED)
+	ac.ẍ = Vector{Float64}()
+	ac.ÿ = Vector{Float64}()
+	ac.z̈ = Vector{Float64}()
+	ac.curr_action = [COC, COC]
+	ac.curr_belief_state = Vector{BELIEF_STATE}()
+	ac.curr_phys_state = physical_state()
+	ac.alerted = false
+	ac.alerted_vert = false
+	ac.alerted_speed = false
 	ac.curr_step = 1
 end
 

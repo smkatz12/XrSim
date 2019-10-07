@@ -38,7 +38,8 @@ struct BELIEF_STATE
 end
 
 TRAJECTORY = Vector{PHYSICAL_STATE}
-ACTION_SEQUENCE = Vector{Int64}
+ACTION = Union{Int64, Vector{Int64}}
+ACTION_SEQUENCE = Vector{ACTION}
 
 """
 -------------------------------------------
@@ -124,6 +125,24 @@ mutable struct UAM_SPEED <: AIRCRAFT
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
+end
+
+mutable struct UAM_BLENDED <: AIRCRAFT
+	ẍ::Vector{Float64}
+	ÿ::Vector{Float64}
+	z̈::Vector{Float64}
+	curr_action::Vector{Int64}
+	curr_belief_state::Vector{BELIEF_STATE}
+	curr_phys_state::PHYSICAL_STATE
+	alerted::Bool
+	alerted_vert::Bool
+	alerted_speed::Bool
+	responsive::Bool
+	curr_step::Int64
+	grid_vert::RectangleGrid
+	qmat_vert::Array{Float64,2}
+	grid_speed::RectangleGrid
+	qmat_speed::Array{Float64,2}
 end
 
 mutable struct HEURISTIC_VERT <: AIRCRAFT
@@ -254,6 +273,34 @@ function uam_speed(;ẍ = Vector{Float64}(),
 	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
 	return UAM_SPEED(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
 						alerted, responsive, curr_step, grid, qmat)
+end
+
+function uam_blended(;ẍ = Vector{Float64}(),
+				   ÿ = Vector{Float64}(),
+				   z̈ = Vector{Float64}(),
+				   curr_action = [COC,COC],
+				   curr_belief_state = Vector{BELIEF_STATE}(),
+				   curr_phys_state = physical_state(),
+				   alerted = false,
+				   alerted_vert = false,
+				   alerted_speed = false,
+				   responsive = true,
+				   curr_step = 1,
+				   q_file_vert = "data_files/xr_vert.bin",
+				   q_file_speed = "data_files/xr_speed.bin",
+				   grid_vert = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert),
+				   grid_speed = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed))
+	s = open(q_file_vert)
+	m = read(s, Int)
+	n = read(s, Int)
+	qmat_vert = Mmap.mmap(s, Matrix{Float64}, (m,n))
+	s = open(q_file_speed)
+	m = read(s, Int)
+	n = read(s, Int)
+	qmat_speed = Mmap.mmap(s, Matrix{Float64}, (m,n))
+	return UAM_BLENDED(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
+						alerted, alerted_vert, alerted_speed, responsive, curr_step, 
+						grid_vert, qmat_vert, grid_speed, qmat_speed)
 end
 
 function heuristic_vert(;ẍ = Vector{Float64}(),

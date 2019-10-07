@@ -17,11 +17,34 @@ function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED})
 	return argmax(q) - 1 # Off by 1 due to indexing at 1
 end
 
+function select_action(ac::UAM_BLENDED)
+	bs_vert = ac.curr_belief_state[1]
+	q_vert = zeros(size(ac.qmat_vert, 2))
+	for i = 1:length(bs_vert.states)
+		q_vert .+= bs_vert.probs[i]*interp_q(ac.grid_vert, ac.qmat_vert, bs_vert.states[i])
+	end
+	bs_speed = ac.curr_belief_state[2]
+	q_speed = zeros(size(ac.qmat_speed, 2))
+	for i = 1:length(bs_speed.states)
+		q_speed .+= bs_speed.probs[i]*interp_q(ac.grid_speed, ac.qmat_speed, bs_speed.states[i])
+	end
+	return [argmax(q_vert) - 1, argmax(q_speed) - 1] # Off by 1 due to indexing at 1
+end
+
 function interp_q(ac::AIRCRAFT, state::MDP_STATE)
 	states, probs = interpolants(ac.grid, convert_to_grid_state(state))
 	q = zeros(size(ac.qmat, 2))
 	for i = 1:length(states)
 		q .+= probs[i]*ac.qmat[states[i],:]
+	end
+	return q
+end
+
+function interp_q(grid::RectangleGrid, qmat::Array{Float64,2}, state::MDP_STATE)
+	states, probs = interpolants(grid, convert_to_grid_state(state))
+	q = zeros(size(qmat, 2))
+	for i = 1:length(states)
+		q .+= probs[i]*qmat[states[i],:]
 	end
 	return q
 end

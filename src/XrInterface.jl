@@ -1,6 +1,6 @@
-function convert_h5_to_bin(filename::String)
+function convert_h5_to_bin(filename::String, newname::String)
 	Q = h5read(filename, "q")
-	newname = string(filename[1:end-2], "bin")
+	#newname = string(filename[1:end-2], "bin")
 	s = open(newname, "w+")
 	# Write the dimensions of the array at the start of the file
 	for j = 1:ndims(Q)
