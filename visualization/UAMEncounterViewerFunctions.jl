@@ -241,6 +241,14 @@ function get_AC_string_side(heading,x,y,fill,draw,width=1.5)
     return "\\node[aircraft side,fill="*fill*",draw="*draw*", minimum width="*string(width)*"cm,rotate="*string(heading)*",scale = 0.3] at (axis cs:"*string(x)*", "*string(y)*") {};"
 end
 
+function get_UAM_string_top(heading,x,y,fill,draw,width=1.5)
+    return "\\node[UAM top,fill="*fill*",draw="*draw*", minimum width="*string(width)*"cm,rotate="*string(heading-90)*",scale = 0.15] at (axis cs:"*string(x)*", "*string(y)*") {};"
+end
+
+function get_UAM_string_side(heading,x,y,fill,draw,width=1.5)
+    return "\\node[UAM side,fill="*fill*",draw="*draw*", minimum width="*string(width)*"cm,rotate="*string(heading)*",scale = 0.5] at (axis cs:"*string(x)*", "*string(y)*") {};"
+end
+
 """
 function getQuadStringTop
 	- returns a string to draw a quadcopter shape from top view
@@ -293,16 +301,16 @@ function draw_AC_horizontal(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis,
 		# Get location of aircraft
 		x = τs[i][t_idx].p[1]
 		y = τs[i][t_idx].p[2]
-		# ẋ = τs[i][t_idx].v[1]
-		# ẏ = τs[i][t_idx].v[2]
-		# heading = atand(ẏ, ẋ) # Check if degrees is correct!!!!
+		# ẋ = τs[i][t_idx].v[1]
+		# ẏ = τs[i][t_idx].v[2]
+		# heading = atand(ẏ, ẋ) # Check if degrees is correct!!!!
 		heading = rad2deg(τs[i][t_idx].h)
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_top(heading,x,y,"black","black")))
 		elseif i == 1
-			push!(a, Plots.Command(get_AC_string_top(heading,x,y,"teal","white")))
+			push!(a, Plots.Command(get_UAM_string_top(heading,x,y,"black","white")))
 		else
-			push!(a, Plots.Command(get_AC_string_top(heading,x,y,"black","white")))
+			push!(a, Plots.Command(get_UAM_string_top(heading,x,y,"black","white")))
 		end
 	end
 	return a
@@ -330,9 +338,9 @@ function draw_AC_vertical(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, i
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_side(heading,x,y,"black","black")))
 		elseif i == 1
-			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"teal","white")))
+			push!(a, Plots.Command(get_UAM_string_side(heading,x,y,"white","black")))
 		else
-			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"black","white")))
+			push!(a, Plots.Command(get_UAM_string_side(heading,x,y,"white","black")))
 		end
 	end
 	return a
@@ -387,7 +395,11 @@ end
 function add_RAs_horiz(τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
 	for i = 1:length(τs)
 		x, y, ni = convert_to_xyz(τs[i])
-		z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+        if length(actions[i][1]) < 2
+            z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+        else
+            z = [ra_dict[actions[i][j][2]] for j = 1:length(actions[i])]
+        end
 		push!(a, Plots.Scatter(x, y, z, scatterClasses=sc))
 	end
 	return a
@@ -396,7 +408,11 @@ end
 function add_RAs_vertical(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
 	for i = 1:length(τs)
 		x, y, ni = convert_to_xyz(τs[i])
-		z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+		if length(actions[i][1]) < 2
+            z = [ra_dict[actions[i][j]] for j = 1:length(actions[i])]
+        else
+            z = [ra_dict[actions[i][j][1]] for j = 1:length(actions[i])]
+        end
 		push!(a, Plots.Scatter(times, ni, z, scatterClasses=sc))
 	end
 	return a
@@ -468,14 +484,15 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, aler
 		push!(actions, sim_out.ac1_actions[enc_ind])
 		push!(actions, sim_out.ac2_actions[enc_ind])
 
-		sc = alert_type == :vert ? sc_vert : sc_speed
+		sc_horizontal = alert_type == :vert ? sc_vert : sc_speed
+        sc_vertical = alert_type == :speed ? sc_speed : sc_vert
 
 		a_horiz = plot_ground_track(τs)
 		a_horiz = draw_AC_horizontal(sim_out.times, τs, t, a_horiz, int_type)
-		a_horiz = add_RAs_horiz(τs, actions, a_horiz, sc)
+		a_horiz = add_RAs_horiz(τs, actions, a_horiz, sc_horizontal)
 		a_vert = plot_vertical_profile(sim_out.times, τs)
 		a_vert = draw_AC_vertical(sim_out.times, τs, t, a_vert, int_type)
-		a_vert = add_RAs_vertical(sim_out.times, τs, actions, a_vert, sc)
+		a_vert = add_RAs_vertical(sim_out.times, τs, actions, a_vert, sc_vertical)
 		# a_vert = plot_side_track(τs)
 		# a_vert = draw_AC_side(sim_out.times, τs, t, a_vert, int_type)
 		# a_vert = add_RAs_side(sim_out.times, τs, actions, a_vert)

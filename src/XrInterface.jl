@@ -10,3 +10,14 @@ function convert_h5_to_bin(filename::String, newname::String)
 	write(s, Q)
 	close(s)
 end
+
+function convert_bin_to_h5(filename::String, newname::String)
+	s = open(filename)
+	m = read(s, Int)
+	n = read(s, Int)
+	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
+
+	h5open(newname, "w") do file
+    	write(file, "q", qmat)
+    end
+end

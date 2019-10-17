@@ -22,6 +22,7 @@ end
 # using UAMEncounterGenerator
 include("../src/XrTypes.jl")
 include("./UAMEncounterViewerFunctions.jl")
+include("./playback.jl")
 
 # end # module UAMEncounterViewer
 
