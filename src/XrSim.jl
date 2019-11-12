@@ -17,7 +17,7 @@ function xr_sim!(sim::SIMULATION; verbose=false)
 				ac.z̈ = read_vector(f, num_steps)
 			end
 			enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
-			enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
+			enc = XR_ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 			# Simulate the encounter
 			simulate_encounter!(enc, verbose=verbose)
 			update_output!(sim, sim.sim_out, enc)
@@ -47,7 +47,7 @@ function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64}; verbose=false)
 			end
 			if sim.curr_enc == enc_inds[enc_ind]
 				enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
-				enc = ENCOUNTER(sim.acs, dt, num_steps, enc_out)
+				enc = XR_ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 				# Simulate the encounter
 				simulate_encounter!(enc, verbose=verbose)
 				update_output!(sim, sim.sim_out, enc)
@@ -88,14 +88,14 @@ function initialize_encounter_output(sim_out::SMALL_SIMULATION_OUTPUT, aircraft:
 	return pairwise_encounter_output()
 end
 
-function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::ENCOUNTER)
+function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
 	push!(sim_out.ac1_trajectories, enc.enc_out.ac1_trajectory)
 	push!(sim_out.ac2_trajectories, enc.enc_out.ac2_trajectory)
 	push!(sim_out.ac1_actions, enc.enc_out.ac1_actions)
 	push!(sim_out.ac2_actions, enc.enc_out.ac2_actions)
 end
 
-function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::ENCOUNTER)
+function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
 	if is_nmac(enc.enc_out) 
 		sim_out.nmacs += 1
 		push!(sim_out.nmac_inds, sim.curr_enc)
@@ -160,7 +160,7 @@ function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vecto
 end
 
 # Currently, this does not support multithreat
-function simulate_encounter!(enc::ENCOUNTER; verbose=false)
+function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false)
 	update_encounter_output!(enc.enc_out, enc.aircraft)
 	ac1 = enc.aircraft[1]
 	ac2 = enc.aircraft[2]
@@ -173,7 +173,7 @@ function simulate_encounter!(enc::ENCOUNTER; verbose=false)
 		# For each aircraft in the encounter
 		for ac in enc.aircraft
 			action = select_action(ac)
-			(verbose && typeof(ac) == UAM_SPEED) ? println(action) : nothing
+			(verbose && typeof(ac) == UAM_BLENDED) ? println(action) : nothing
 			dynamics!(ac, action, enc.dt)
 		end
 		# get next mdp state - mdp_state(phys_state)
@@ -267,11 +267,20 @@ function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a
 
 	h = int_state.p[3] - own_state.p[3]
 	ḣ = int_state.v[3] - own_state.v[3]
-	τ = h < 100.0 ? 0.0 : (h - 100.0)/ḣ
+	h_subtract = h < 0 ? -100 : 100
+	τ = abs(h) < 100.0 ? 0.0 : (h - h_subtract)/ḣ
 
-	if τ < 0.0
+	if τ ≤ 0.0
+		τ = -τ
+	else
 		τ = Inf
 	end
+
+	# τ = h < 100.0 ? 0.0 : (h - 100.0)/ḣ
+
+	# if τ < 0.0
+	# 	τ = Inf
+	# end
 
 	pra = length(a_prev) > 1 ? a_prev[2] : a_prev
 
@@ -321,7 +330,13 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		next_az = rand(acceleration_dist_vert)
 		vlow, vhigh = vel_ranges[action]
 		if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
-        	next_az = 0
+        	#println("$(ac.curr_step): $(ac.on_flight_path): $(ac.z̈[ac.curr_step])")
+        	if ac.on_flight_path
+        		next_az = ac.z̈[ac.curr_step]
+        	else
+        		next_az = 0.0 # Maybe change this?
+        		ac.on_flight_path = false
+        	end
 	    else
 	    	# Figure out how to get out of the velocity range
 	    	next_az = abs(vlow) < abs(vhigh) ? -next_az : next_az
@@ -330,17 +345,14 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		    elseif vhigh < curr_v[3] + next_az
 		        next_az = vhigh - curr_v[3]
 		    end
+		    ac.on_flight_path = false
 		end
 		next_v_curr_a = curr_v + curr_a*dt
-		# slowing_down = norm(next_v_curr_a[1:2]) < norm(curr_v[1:2])
-		# if slowing_down
-		# 	next_a = [0.0, 0.0, next_az] 
-		# else
-			next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
-		# end
+		next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
 	end
 
 	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
+	#println(next_p[3])
 	next_v = curr_v + next_a*dt
 	next_h = norm(next_v) > 1e-9 ? atan(next_v[2], next_v[1]) : curr_h
 
@@ -370,8 +382,6 @@ function dynamics!(ac::UAM_SPEED, action::Int64, dt::Float64)
 		curr_speed = norm(curr_v[1:2])
 		# Just make sure we do not go out of range 
 		# *(may want to add this in speed mdp transition model)*
-		# println("accel_noise: $accel_noise")
-		# println("accels_speed[action]: $(accels_speed[action])")
 		if curr_speed + accel > speed_max
 			accel = speed_max - curr_speed
 		elseif curr_speed + accel < speed_min
@@ -413,7 +423,12 @@ function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)
 			next_az = rand(acceleration_dist_vert)
 			vlow, vhigh = vel_ranges[action[1]]
 			if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
-	        	next_az = 0
+	        	if ac.on_flight_path
+	        		next_az = ac.z̈[ac.curr_step]
+	        	else
+	        		next_az = 0.0 # Maybe change this?
+	        		ac.on_flight_path = false
+	        	end
 		    else
 		    	# Figure out how to get out of the velocity range
 		    	next_az = abs(vlow) < abs(vhigh) ? -next_az : next_az
@@ -422,6 +437,7 @@ function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)
 			    elseif vhigh < curr_v[3] + next_az
 			        next_az = vhigh - curr_v[3]
 			    end
+			    ac.on_flight_path = false
 			end
 		end
 		# Now deal with speed ########################################
@@ -471,6 +487,18 @@ function reset!(ac::AIRCRAFT)
 	ac.curr_step = 1
 end
 
+function reset!(ac::Union{UAM_VERT, UAM_VERT_PO})
+	ac.ẍ = Vector{Float64}()
+	ac.ÿ = Vector{Float64}()
+	ac.z̈ = Vector{Float64}()
+	ac.curr_action = COC
+	ac.curr_belief_state = belief_state()
+	ac.curr_phys_state = physical_state()
+	ac.alerted = false
+	ac.on_flight_path = true
+	ac.curr_step = 1
+end
+
 function reset!(ac::UAM_BLENDED)
 	ac.ẍ = Vector{Float64}()
 	ac.ÿ = Vector{Float64}()
@@ -481,6 +509,7 @@ function reset!(ac::UAM_BLENDED)
 	ac.alerted = false
 	ac.alerted_vert = false
 	ac.alerted_speed = false
+	ac.on_flight_path = true
 	ac.curr_step = 1
 end
 

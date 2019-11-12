@@ -37,7 +37,7 @@ struct BELIEF_STATE
 	probs::Vector{Float64}
 end
 
-TRAJECTORY = Vector{PHYSICAL_STATE}
+XR_TRAJECTORY = Vector{PHYSICAL_STATE}
 ACTION = Union{Int64, Vector{Int64}}
 ACTION_SEQUENCE = Vector{ACTION}
 
@@ -94,6 +94,7 @@ mutable struct UAM_VERT <: AIRCRAFT
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	responsive::Bool
+	on_flight_path::Bool
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
@@ -108,6 +109,7 @@ mutable struct UAM_VERT_PO <: AIRCRAFT
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	responsive::Bool
+	on_flight_path::Bool
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
@@ -138,6 +140,7 @@ mutable struct UAM_BLENDED <: AIRCRAFT
 	alerted_vert::Bool
 	alerted_speed::Bool
 	responsive::Bool
+	on_flight_path::Bool
 	curr_step::Int64
 	grid_vert::RectangleGrid
 	qmat_vert::Array{Float64,2}
@@ -154,6 +157,7 @@ mutable struct HEURISTIC_VERT <: AIRCRAFT
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	responsive::Bool
+	on_flight_path::Bool
 	curr_step::Int64
 end
 
@@ -161,13 +165,13 @@ abstract type ENCOUNTER_OUTPUT
 end
 
 mutable struct PAIRWISE_ENCOUNTER_OUTPUT <: ENCOUNTER_OUTPUT
-	ac1_trajectory::TRAJECTORY
-	ac2_trajectory::TRAJECTORY
+	ac1_trajectory::XR_TRAJECTORY
+	ac2_trajectory::XR_TRAJECTORY
 	ac1_actions::ACTION_SEQUENCE
 	ac2_actions::ACTION_SEQUENCE
 end
 
-mutable struct ENCOUNTER
+mutable struct XR_ENCOUNTER
 	aircraft::Vector{AIRCRAFT}
 	dt::Float64
 	num_steps::Int64
@@ -178,8 +182,8 @@ abstract type SIMULATION_OUTPUT
 end
 
 mutable struct PAIRWISE_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
-	ac1_trajectories::Vector{TRAJECTORY}
-	ac2_trajectories::Vector{TRAJECTORY}
+	ac1_trajectories::Vector{XR_TRAJECTORY}
+	ac2_trajectories::Vector{XR_TRAJECTORY}
 	ac1_actions::Vector{ACTION_SEQUENCE}
 	ac2_actions::Vector{ACTION_SEQUENCE}
 	times::Vector{Float64}
@@ -226,6 +230,7 @@ function uam_vert(;ẍ = Vector{Float64}(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   responsive = true,
+				   on_flight_path=true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
 				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
@@ -234,7 +239,7 @@ function uam_vert(;ẍ = Vector{Float64}(),
 	n = read(s, Int)
 	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
 	return UAM_VERT(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
-						alerted, responsive, curr_step, grid, qmat)
+						alerted, responsive, on_flight_path, curr_step, grid, qmat)
 end
 
 function uam_vert_po(;ẍ = Vector{Float64}(),
@@ -245,6 +250,7 @@ function uam_vert_po(;ẍ = Vector{Float64}(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   responsive = true,
+				   on_flight_path=true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
 				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
@@ -253,7 +259,7 @@ function uam_vert_po(;ẍ = Vector{Float64}(),
 	n = read(s, Int)
 	qmat = Mmap.mmap(s, Matrix{Float64}, (m,n))
 	return UAM_VERT_PO(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
-						alerted, responsive, curr_step, grid, qmat)
+						alerted, responsive, on_flight_path, curr_step, grid, qmat)
 end
 
 function uam_speed(;ẍ = Vector{Float64}(),
@@ -285,6 +291,7 @@ function uam_blended(;ẍ = Vector{Float64}(),
 				   alerted_vert = false,
 				   alerted_speed = false,
 				   responsive = true,
+				   on_flight_path=true,
 				   curr_step = 1,
 				   q_file_vert = "data_files/xr_vert.bin",
 				   q_file_speed = "data_files/xr_speed.bin",
@@ -299,8 +306,8 @@ function uam_blended(;ẍ = Vector{Float64}(),
 	n = read(s, Int)
 	qmat_speed = Mmap.mmap(s, Matrix{Float64}, (m,n))
 	return UAM_BLENDED(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
-						alerted, alerted_vert, alerted_speed, responsive, curr_step, 
-						grid_vert, qmat_vert, grid_speed, qmat_speed)
+						alerted, alerted_vert, alerted_speed, responsive, on_flight_path, 
+						curr_step, grid_vert, qmat_vert, grid_speed, qmat_speed)
 end
 
 function heuristic_vert(;ẍ = Vector{Float64}(),
@@ -311,13 +318,14 @@ function heuristic_vert(;ẍ = Vector{Float64}(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   responsive = true,
+				   on_flight_path = true,
 				   curr_step = 1)
 	return HEURISTIC_VERT(ẍ, ÿ, z̈, curr_action, curr_belief_state, curr_phys_state, 
-						alerted, responsive, curr_step)
+						alerted, responsive, on_flight_path, curr_step)
 end
 
-function pairwise_simulation_output(;ac1_trajectories = Vector{TRAJECTORY}(),
-									 ac2_trajectories = Vector{TRAJECTORY}(),
+function pairwise_simulation_output(;ac1_trajectories = Vector{XR_TRAJECTORY}(),
+									 ac2_trajectories = Vector{XR_TRAJECTORY}(),
 									 ac1_actions = Vector{ACTION_SEQUENCE}(),
 									 ac2_actions = Vector{ACTION_SEQUENCE}(),
 									 times = Vector{Float64}())
@@ -333,8 +341,8 @@ function small_simulation_output(;nmacs = 0,
 	return SMALL_SIMULATION_OUTPUT(nmacs, nmac_inds, alerts, alert_inds, times)
 end
 
-function pairwise_encounter_output(;ac1_trajectory = TRAJECTORY(),
-									 ac2_trajectory = TRAJECTORY(),
+function pairwise_encounter_output(;ac1_trajectory = XR_TRAJECTORY(),
+									 ac2_trajectory = XR_TRAJECTORY(),
 									 ac1_actions = ACTION_SEQUENCE(),
 									 ac2_actions = ACTION_SEQUENCE())
 	return PAIRWISE_ENCOUNTER_OUTPUT(ac1_trajectory, ac2_trajectory,
@@ -358,8 +366,8 @@ function copy(s::PHYSICAL_STATE)
 end
 
 function reset!(sim_out::PAIRWISE_SIMULATION_OUTPUT)
-	sim_out.ac1_trajectories = Vector{TRAJECTORY}()
-	sim_out.ac2_trajectories = Vector{TRAJECTORY}()
+	sim_out.ac1_trajectories = Vector{XR_TRAJECTORY}()
+	sim_out.ac2_trajectories = Vector{XR_TRAJECTORY}()
 	sim_out.ac1_actions = Vector{ACTION_SEQUENCE}()
 	sim_out.ac2_actions = Vector{ACTION_SEQUENCE}()
 	sim_out.times = Vector{Float64}()

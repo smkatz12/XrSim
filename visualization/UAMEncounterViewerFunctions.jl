@@ -98,7 +98,7 @@ Actual functions
 function plotGroundTrack
 - plots the ground track of a particular encounter
 """
-function plot_ground_track(τs::Vector{TRAJECTORY})
+function plot_ground_track(τs::Vector{XR_TRAJECTORY})
 	# Initialize plot object
 	a = Axis()
 
@@ -117,7 +117,7 @@ function plot_ground_track(τs::Vector{TRAJECTORY})
 	return a
 end
 
-function plot_side_track(τs::Vector{TRAJECTORY})
+function plot_side_track(τs::Vector{XR_TRAJECTORY})
 	# Initialize plot object
 	a = Axis()
 
@@ -135,14 +135,14 @@ function plot_side_track(τs::Vector{TRAJECTORY})
 	return a
 end
 
-function convert_to_xyz(τ::TRAJECTORY)
+function convert_to_xyz(τ::XR_TRAJECTORY)
 	x = [τ[i].p[1] for i = 1:length(τ)]
 	y = [τ[i].p[2] for i = 1:length(τ)]
 	z = [τ[i].p[3] for i = 1:length(τ)]
 	return x, y, z
 end
 
-function convert_to_vxyz(τ::TRAJECTORY)
+function convert_to_vxyz(τ::XR_TRAJECTORY)
 	vx = [τ[i].v[1] for i = 1:length(τ)]
 	vy = [τ[i].v[2] for i = 1:length(τ)]
 	vz = [τ[i].v[3] for i = 1:length(τ)]
@@ -162,7 +162,7 @@ end
 function plotVerticalProfile
 - plots the verical profile of a particular encounter
 """
-function plot_vertical_profile(times, τs::Vector{TRAJECTORY})
+function plot_vertical_profile(times, τs::Vector{XR_TRAJECTORY})
 	# Initialize the plot object
 	a = Axis()
 
@@ -183,7 +183,7 @@ end
 function getHorizRange
 - returns the horizontal range at a particular time in the encounter
 """
-function get_horiz_range(times, τs::Vector{TRAJECTORY}, t::Float64)
+function get_horiz_range(times, τs::Vector{XR_TRAJECTORY}, t::Float64)
 	# First, figure out index that the specified time corresponds to
 	t_idx = findfirst(t .<= times)
 	# Get aircraft states
@@ -198,7 +198,7 @@ end
 function getVertRange
 - returns the vertical range at a particular time in the encounter
 """
-function get_vert_range(times, τs::Vector{TRAJECTORY}, t::Float64)
+function get_vert_range(times, τs::Vector{XR_TRAJECTORY}, t::Float64)
 	# First, figure out index that the specified time corresponds to
 	t_idx = findfirst(t .<= times)
 	# Get aircraft states
@@ -293,7 +293,7 @@ function drawACHorizontal
 	- a: axis object to add the shapes to
 	- intType: type of intruder (right now supports :AC and :quad)
 """
-function draw_AC_horizontal(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
+function draw_AC_horizontal(times, τs::Vector{XR_TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
 	# First, figure out index that the specified time corresponds to
 	t_idx = findfirst(t .<= times)
 	# Next, loop through AC and draw them
@@ -326,7 +326,7 @@ function drawACVertical
 	- a: axis object to add the shapes to
 	- intType: type of intruder (right now supports :AC and :quad)
 """
-function draw_AC_vertical(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
+function draw_AC_vertical(times, τs::Vector{XR_TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
 	# First, figure out index that the specified time corresponds to
 	t_idx = findfirst(t .<= times)
 	# Next, loop through AC and draw them
@@ -346,7 +346,7 @@ function draw_AC_vertical(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, i
 	return a
 end
 
-function draw_AC_side(times, τs::Vector{TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
+function draw_AC_side(times, τs::Vector{XR_TRAJECTORY}, t::Float64, a::Axis, intType::Symbol)
 	# First, figure out index that the specified time corresponds to
 	t_idx = findfirst(t .<= times)
 	# Next, loop through AC and draw them
@@ -372,7 +372,7 @@ end
 function getHorizInfoPlot
 	- returns a plot that will update with info about the current state
 """
-function get_horiz_info_plot(times, τs::Vector{TRAJECTORY}, t::Float64)
+function get_horiz_info_plot(times, τs::Vector{XR_TRAJECTORY}, t::Float64)
 	horizString = @sprintf("Horizontal Range: %.4g", get_horiz_range(times, τs, t))
 	f = (x,y)->1
 	a = Axis([Plots.Image(f, (-2,2), (-2,2), colormap=ColorMaps.RGBArrayMap([RGB(1.0,1.0,1.0)]), colorbar=false),
@@ -384,7 +384,7 @@ end
 function getVertInfoPlot
 	- returns a plot that will update with info about the current state
 """
-function get_vert_info_plot(times, τs::Vector{TRAJECTORY}, t::Float64)
+function get_vert_info_plot(times, τs::Vector{XR_TRAJECTORY}, t::Float64)
 	vertString = @sprintf("Vertical Range: %.4g", get_vert_range(times, τs, t))
 	f = (x,y)->1
 	a = Axis([Plots.Image(f, (-2,2), (-2,2), colormap=ColorMaps.RGBArrayMap([RGB(1.0,1.0,1.0)]), colorbar=false),
@@ -392,7 +392,7 @@ function get_vert_info_plot(times, τs::Vector{TRAJECTORY}, t::Float64)
 	return a
 end
 
-function add_RAs_horiz(τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
+function add_RAs_horiz(τs::Vector{XR_TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
 	for i = 1:length(τs)
 		x, y, ni = convert_to_xyz(τs[i])
         if length(actions[i][1]) < 2
@@ -405,7 +405,7 @@ function add_RAs_horiz(τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}
 	return a
 end
 
-function add_RAs_vertical(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
+function add_RAs_vertical(times, τs::Vector{XR_TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis, sc)
 	for i = 1:length(τs)
 		x, y, ni = convert_to_xyz(τs[i])
 		if length(actions[i][1]) < 2
@@ -418,7 +418,7 @@ function add_RAs_vertical(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION
 	return a
 end
 
-function add_RAs_side(times, τs::Vector{TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis)
+function add_RAs_side(times, τs::Vector{XR_TRAJECTORY}, actions::Vector{ACTION_SEQUENCE}, a::Axis)
 	for i = 1:length(τs)
 		x, y, ni = convert_to_xyz(τs[i])
 		dist = get_distances(τs[i])
@@ -476,7 +476,7 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, aler
 		t in slider(0:1:sim_out.times[end], value=0)
 
 		enc_ind = convert(Int64, enc)
-		τs = Vector{TRAJECTORY}()
+		τs = Vector{XR_TRAJECTORY}()
 		push!(τs, sim_out.ac1_trajectories[enc_ind])
 		push!(τs, sim_out.ac2_trajectories[enc_ind])
 
