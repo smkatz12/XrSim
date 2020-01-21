@@ -197,9 +197,18 @@ function get_belief_state(ownship::UAM_SPEED, intruder::AIRCRAFT, dt::Float64)
 	return BELIEF_STATE([get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])
 end
 
+function get_belief_state(ownship::UAM_SPEED_INTENT, intruder::AIRCRAFT, dt::Float64)
+	return BELIEF_STATE([get_speed_state_intent(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])
+end
+
 function get_belief_state(ownship::UAM_BLENDED, intruder::AIRCRAFT, dt::Float64)
 	return [BELIEF_STATE([get_vert_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0]),
 			BELIEF_STATE([get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])]
+end
+
+function get_belief_state(ownship::UAM_BLENDED_INTENT, intruder::AIRCRAFT, dt::Float64)
+	return [BELIEF_STATE([get_vert_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0]),
+			BELIEF_STATE([get_speed_state_intent(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])]
 end
 
 # Partially observable (just τ for now)
@@ -287,6 +296,50 @@ function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a
 	return SPEED_STATE(r, θ, ψ, v₀, v₁, pra, τ)
 end
 
+# NOTE: I was dumb with units and I think I need to convert everything horizontal from m to ft
+function get_speed_state_intent(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_prev::ACTION, dt::Float64)
+	p = (int_state.p[1:2] - own_state.p[1:2])*m2ft
+	r = norm(p)
+
+	rot_mat = [cos(own_state.h) -sin(own_state.h); sin(own_state.h) cos(own_state.h)]
+
+	p_rot = rot_mat*p
+	θ = atan(p_rot[2], p_rot[1])
+
+	v₁_rot = rot_mat*int_state.v[1:2]
+	ψ = atan(v₁_rot[2], v₁_rot[1])
+
+	v₀ = norm(own_state.v[1:2])*mps2fps
+	v₁ = norm(int_state.v[1:2])*mps2fps
+
+	h = int_state.p[3] - own_state.p[3]
+	ḣ = int_state.v[3] - own_state.v[3]
+	h_subtract = h < 0 ? -100 : 100
+	τ = abs(h) < 100.0 ? 0.0 : (h - h_subtract)/ḣ
+
+	if τ ≤ 0.0
+		τ = -τ
+	else
+		τ = Inf
+	end
+
+	pra = length(a_prev) > 1 ? a_prev[2] : a_prev
+
+	# Figure out intent (right now using some simple logic to infer - will see how well it works)
+	a₁ = int_state.a[1:2]*mps2fps
+	v₁_next = norm(int_state.v[1:2]*mps2fps + a₁) # Assuming dt is 1 just for calculation purposes (does not affect overalls sim)
+	a = v₁_next - v₁
+
+	intent = NOMINAL
+	if a < -0.08g
+		intent = LANDING
+	elseif a > 0.08g
+		intent = TAKEOFF
+	end
+
+	return SPEED_STATE_INTENT(r, θ, ψ, v₀, v₁, pra, τ, intent)
+end
+
 function get_mdp_state_turn(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, turn_rate_own::Float64, turn_rate_int::Float64, pra::Int64, dt::Float64)
 	h = int_state.p[3] - own_state.p[3]
 	ḣ₀ = own_state.v[3]
@@ -314,13 +367,29 @@ end
 function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)		
 	should_print = typeof(ac) == UAM_VERT && action > COC
 
+	# Figure out what action we are actually going to take based on delays
+	prev_action = ac.curr_action
 	ac.curr_action = action
+	if (!ac.alerted) && (ac.init_delay > 0) && (action > COC) # will be dealing with initial delays here
+		if ac.init_delay_counter < ac.init_delay
+			ac.init_delay_counter += 1
+			ac.curr_action = COC
+		end
+	elseif ac.alerted && (ac.subseq_delay > 0) && (action > COC) && (action != prev_action)
+		if ac.subseq_delay_counter == ac.subseq_delay # Need to reset on an action change
+			ac.subseq_delay_counter = 1
+		elseif ac.subseq_delay_counter < ac.subseq_delay
+			ac.subseq_delay_counter += 1
+			ac.curr_action = prev_action
+		end
+	end
+
 	curr_p = ac.curr_phys_state.p
 	curr_v = ac.curr_phys_state.v
 	curr_a = ac.curr_phys_state.a
 	curr_h = ac.curr_phys_state.h
 
-	action > COC ? ac.alerted = true : nothing
+	ac.curr_action > COC ? ac.alerted = true : nothing
 
 	if !ac.alerted || !ac.responsive # Follow flight path
 		next_az = ac.z̈[ac.curr_step]
@@ -328,7 +397,7 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 	else # Determine acceleration based on current ra
 		# Sample an acceleration
 		next_az = rand(acceleration_dist_vert)
-		vlow, vhigh = vel_ranges[action]
+		vlow, vhigh = vel_ranges[ac.curr_action]
 		if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
         	#println("$(ac.curr_step): $(ac.on_flight_path): $(ac.z̈[ac.curr_step])")
         	if ac.on_flight_path
@@ -361,14 +430,30 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 	ac.curr_step += 1
 end
 
-function dynamics!(ac::UAM_SPEED, action::Int64, dt::Float64)		
+function dynamics!(ac::Union{UAM_SPEED, UAM_SPEED_INTENT}, action::Int64, dt::Float64)		
+	# Figure out what action we are actually going to take based on delays
+	prev_action = ac.curr_action
 	ac.curr_action = action
+	if (!ac.alerted) && (ac.init_delay > 0) && (action > COC) # will be dealing with initial delays here
+		if ac.init_delay_counter < ac.init_delay
+			ac.init_delay_counter += 1
+			ac.curr_action = COC
+		end
+	elseif ac.alerted && (ac.subseq_delay > 0) && (action > COC) && (action != prev_action)
+		if ac.subseq_delay_counter == ac.subseq_delay # Need to reset on an action change
+			ac.subseq_delay_counter = 1
+		elseif ac.subseq_delay_counter < ac.subseq_delay
+			ac.subseq_delay_counter += 1
+			ac.curr_action = prev_action
+		end
+	end
+
 	curr_p = ac.curr_phys_state.p
 	curr_v = ac.curr_phys_state.v
 	curr_a = ac.curr_phys_state.a
 	curr_h = ac.curr_phys_state.h
 
-	action > COC ? ac.alerted = true : nothing
+	ac.curr_action > COC ? ac.alerted = true : nothing
 
 	if !ac.alerted || !ac.responsive # Follow flight path
 		next_az = ac.z̈[ac.curr_step]
@@ -376,8 +461,8 @@ function dynamics!(ac::UAM_SPEED, action::Int64, dt::Float64)
 	else # Determine acceleration based on current ra
 		# Sample acceleration noise
 		accel_noise = rand(acceleration_noise_speed)
-		accel = (accels_speed[action] + accel_noise)*accels_speed[action] < 0.0 ? 
-				0.0 : accels_speed[action] + accel_noise
+		accel = (accels_speed[ac.curr_action] + accel_noise)*accels_speed[ac.curr_action] < 0.0 ? 
+				0.0 : accels_speed[ac.curr_action] + accel_noise
 
 		curr_speed = norm(curr_v[1:2])
 		# Just make sure we do not go out of range 
@@ -402,16 +487,32 @@ function dynamics!(ac::UAM_SPEED, action::Int64, dt::Float64)
 	ac.curr_step += 1
 end
 
-function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)		
+function dynamics!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT}, action::Vector{Int64}, dt::Float64)		
+	# Figure out what action we are actually going to take based on delays
+	prev_action = ac.curr_action
 	ac.curr_action = action
+	if (!ac.alerted) && (ac.init_delay > 0) && any(action .> COC) # will be dealing with initial delays here
+		if ac.init_delay_counter < ac.init_delay
+			ac.init_delay_counter += 1
+			ac.curr_action = [COC, COC]
+		end
+	elseif ac.alerted && (ac.subseq_delay > 0) && any(action .> COC) && any(action .!= prev_action)
+		if ac.subseq_delay_counter == ac.subseq_delay # Need to reset on an action change
+			ac.subseq_delay_counter = 1
+		elseif ac.subseq_delay_counter < ac.subseq_delay
+			ac.subseq_delay_counter += 1
+			ac.curr_action = prev_action
+		end
+	end
+
 	curr_p = ac.curr_phys_state.p
 	curr_v = ac.curr_phys_state.v
 	curr_a = ac.curr_phys_state.a
 	curr_h = ac.curr_phys_state.h
 
-	any(action .> COC) ? ac.alerted = true : nothing
-	action[1] > COC ? ac.alerted_vert = true : nothing
-	action[2] > COC ? ac.alerted_speed = true : nothing
+	any(ac.curr_action .> COC) ? ac.alerted = true : nothing
+	ac.curr_action[1] > COC ? ac.alerted_vert = true : nothing
+	ac.curr_action[2] > COC ? ac.alerted_speed = true : nothing
 
 	if !ac.alerted || !ac.responsive # Follow flight path
 		next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], ac.z̈[ac.curr_step]]
@@ -421,7 +522,7 @@ function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)
 			next_az = ac.z̈[ac.curr_step]
 		else
 			next_az = rand(acceleration_dist_vert)
-			vlow, vhigh = vel_ranges[action[1]]
+			vlow, vhigh = vel_ranges[ac.curr_action[1]]
 			if (vlow ≥ curr_v[3]) .| (vhigh ≤ curr_v[3]) # Compliant velocity
 	        	if ac.on_flight_path
 	        		next_az = ac.z̈[ac.curr_step]
@@ -447,8 +548,8 @@ function dynamics!(ac::UAM_BLENDED, action::Vector{Int64}, dt::Float64)
 		else
 			# Sample acceleration noise
 			accel_noise = rand(acceleration_noise_speed)
-			accel = (accels_speed[action[2]] + accel_noise)*accels_speed[action[2]] < 0.0 ? 
-					0.0 : accels_speed[action[2]] + accel_noise
+			accel = (accels_speed[ac.curr_action[2]] + accel_noise)*accels_speed[ac.curr_action[2]] < 0.0 ? 
+					0.0 : accels_speed[ac.curr_action[2]] + accel_noise
 
 			curr_speed = norm(curr_v[1:2])
 			# Just make sure we do not go out of range 
@@ -484,6 +585,8 @@ function reset!(ac::AIRCRAFT)
 	ac.curr_belief_state = belief_state()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
+	ac.init_delay_counter = 1
+	ac.subseq_delay_counter = 1
 	ac.curr_step = 1
 end
 
@@ -496,10 +599,12 @@ function reset!(ac::Union{UAM_VERT, UAM_VERT_PO})
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
 	ac.on_flight_path = true
+	ac.init_delay_counter = 1
+	ac.subseq_delay_counter = 1
 	ac.curr_step = 1
 end
 
-function reset!(ac::UAM_BLENDED)
+function reset!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT})
 	ac.ẍ = Vector{Float64}()
 	ac.ÿ = Vector{Float64}()
 	ac.z̈ = Vector{Float64}()
@@ -510,6 +615,8 @@ function reset!(ac::UAM_BLENDED)
 	ac.alerted_vert = false
 	ac.alerted_speed = false
 	ac.on_flight_path = true
+	ac.init_delay_counter = 1
+	ac.subseq_delay_counter = 1
 	ac.curr_step = 1
 end
 
@@ -524,6 +631,10 @@ end
 
 function convert_to_grid_state(s::SPEED_STATE)
 	return [s.r, s.θ, s.ψ, s.v₀, s.v₁, s.a_prev, s.τ]
+end
+
+function convert_to_grid_state(s::SPEED_STATE_INTENT)
+	return [s.r, s.θ, s.ψ, s.v₀, s.v₁, s.a_prev, s.τ, s.intent]
 end
 
 function rotate_vec(v::Vector, θ::Float64)

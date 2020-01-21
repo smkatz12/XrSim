@@ -8,6 +8,7 @@ ft2m = 0.3048
 m2ft = 3.28084
 mps2fps = 3.28084
 g = 32.2 #ft/s²
+g_mps = 9.81
 
 """
 -------------------------------------------
@@ -41,8 +42,8 @@ vel_ranges = Dict(COC=>(0.0fpm2fps, 0.0fpm2fps),#COC=>(-500.0fpm2fps, 500.0fpm2f
 acceleration_dist_vert = Normal(0.15g, 0.02g)
 
 # Speed
-accels_speed = Dict(COC=>0.0, WD=>-0.04g, WA=>0.04g, SD=>-0.08g, SA=>0.08g)
-acceleration_noise_speed = Normal(0.0, 0.02g)
+accels_speed = Dict(COC=>0.0, WD=>-0.04g_mps, WA=>0.04g_mps, SD=>-0.08g_mps, SA=>0.08g_mps)
+acceleration_noise_speed = Normal(0.0, 0.02g_mps)
 
 speed_max = 45.0 # m/s
 speed_min = 0.0 # m/s
@@ -68,6 +69,11 @@ v₀s = [0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0].*mps2fps   #ft
 v₁s = [0.0, 8.0, 16.0, 24.0, 32.0, 40.0].*mps2fps #ft/s
 a_prevs = collect(0:4) # Check this (NOTE: this is same as above and has to be)
 
-nTau_max = 60
+NOMINAL = 0
+LANDING = 1
+TAKEOFF = 2
+
+nTau_max = 100
 dt_speed_q = 4
 τs_speed = collect(0:dt_speed_q:nTau_max)
+intents = collect(0:2)

@@ -8,7 +8,7 @@ end
 # 	return argmax(ac.qmat[s,:]) - 1 # Off by 1 due to indexing at 1
 # end
 
-function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED})
+function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED, UAM_SPEED_INTENT})
 	bs = ac.curr_belief_state
 	q = zeros(size(ac.qmat, 2))
 	for i = 1:length(bs.states)
@@ -17,7 +17,7 @@ function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED})
 	return argmax(q) - 1 # Off by 1 due to indexing at 1
 end
 
-function select_action(ac::UAM_BLENDED)
+function select_action(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT})
 	bs_vert = ac.curr_belief_state[1]
 	q_vert = zeros(size(ac.qmat_vert, 2))
 	for i = 1:length(bs_vert.states)
