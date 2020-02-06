@@ -307,6 +307,8 @@ function draw_AC_horizontal(times, τs::Vector{XR_TRAJECTORY}, t::Float64, a::Ax
 		heading = rad2deg(τs[i][t_idx].h)
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_top(heading,x,y,"black","black")))
+		elseif i > 1 && intType == :manned
+			push!(a, Plots.Command(get_AC_string_top(heading,x,y,"black","white")))
 		elseif i == 1
 			push!(a, Plots.Command(get_UAM_string_top(heading,x,y,"black","white")))
 		else
@@ -337,6 +339,8 @@ function draw_AC_vertical(times, τs::Vector{XR_TRAJECTORY}, t::Float64, a::Axis
 		y = τs[i][t_idx].p[3]
 		if i > 1 && intType == :quad
 			push!(a, Plots.Command(get_quad_string_side(heading,x,y,"black","black")))
+		elseif i > 1 && intType == :manned
+			push!(a, Plots.Command(get_AC_string_side(heading,x,y,"black","white")))
 		elseif i == 1
 			push!(a, Plots.Command(get_UAM_string_side(heading,x,y,"white","black")))
 		else
@@ -512,7 +516,7 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, aler
 			push!(g2, a_horiz)
 			push!(g2, a_vert)
 			alert_type == :vert ? push!(g2, get_key_vert()) : push!(g2, get_key_speed())
-			PGFPlots.save(fileName, g2)
+			PGFPlots.save(fileName, g2, include_preamble=false)
 		end
 
 		return g
