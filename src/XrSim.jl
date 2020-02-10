@@ -19,7 +19,7 @@ function xr_sim!(sim::SIMULATION; verbose=false)
 			enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
 			enc = XR_ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 			# Simulate the encounter
-			simulate_encounter!(enc, verbose=verbose)
+			simulate_encounter!(enc, verbose=verbose, surveillance_on=sim.surveillance_on)
 			update_output!(sim, sim.sim_out, enc)
 		end
 		sim.sim_out.times = collect(range(0, step=dt, length=num_steps+1))
@@ -49,7 +49,7 @@ function xr_sim!(sim::SIMULATION, enc_inds::Vector{Int64}; verbose=false)
 				enc_out = initialize_encounter_output(sim.sim_out, sim.acs)
 				enc = XR_ENCOUNTER(sim.acs, dt, num_steps, enc_out)
 				# Simulate the encounter
-				simulate_encounter!(enc, verbose=verbose)
+				simulate_encounter!(enc, verbose=verbose, surveillance_on=sim.surveillance_on)
 				update_output!(sim, sim.sim_out, enc)
 				enc_ind += 1
 				if enc_ind > length(enc_inds)
@@ -93,6 +93,8 @@ function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, en
 	push!(sim_out.ac2_trajectories, enc.enc_out.ac2_trajectory)
 	push!(sim_out.ac1_actions, enc.enc_out.ac1_actions)
 	push!(sim_out.ac2_actions, enc.enc_out.ac2_actions)
+	push!(sim_out.ac1_tracker_hists, enc.enc_out.ac1_tracker_hist)
+	push!(sim_out.ac2_tracker_hists, enc.enc_out.ac2_tracker_hist)
 end
 
 function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
@@ -152,21 +154,37 @@ function is_alert(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 	return alert₀ || alert₁
 end
 
-function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vector{AIRCRAFT})
+function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vector{AIRCRAFT}; surveillance_on=false)
 	push!(enc_out.ac1_trajectory, acs[1].curr_phys_state)
 	push!(enc_out.ac2_trajectory, acs[2].curr_phys_state)
 	push!(enc_out.ac1_actions, acs[1].curr_action)
 	push!(enc_out.ac2_actions, acs[2].curr_action)
+	if surveillance_on
+		push!(enc_out.ac1_tracker_hist.observations, acs[1].curr_observation)
+		push!(enc_out.ac1_tracker_hist.μb, acs[1].tracker.μb)
+		push!(enc_out.ac1_tracker_hist.Σb, acs[1].tracker.Σb)
+		push!(enc_out.ac2_tracker_hist.observations, acs[1].curr_observation)
+		push!(enc_out.ac2_tracker_hist.μb, acs[1].tracker.μb)
+		push!(enc_out.ac2_tracker_hist.Σb, acs[1].tracker.Σb)
+	end
 end
 
 # Currently, this does not support multithreat
-function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false)
-	update_encounter_output!(enc.enc_out, enc.aircraft)
+function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false, surveillance_on=false)
 	ac1 = enc.aircraft[1]
 	ac2 = enc.aircraft[2]
 	# Get initial state (physical and mdp) and set it to current state
-	ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
-	ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
+	if sim.surveillance_on
+		make_observation!(ac1)
+		make_observation!(ac2)
+		ac1.tracker = kalman_filter(μb=[ac1.curr_phys_state.p; ac1.curr_phys_state.v; ac2.curr_phys_state.p; ac2.curr_phys_state.v])
+		ac2.tracker = kalman_filter(μb=[ac2.curr_phys_state.p; ac2.curr_phys_state.v; ac1.curr_phys_state.p; ac1.curr_phys_state.v])
+		update_belief!(ac1, ac2, enc.dt)
+	else
+		ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
+		ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
+	end
+	update_encounter_output!(enc.enc_out, enc.aircraft, surveillance_on=surveillance_on)
 	# Get encounter length
 	# For each time step in the encounter
 	for i = 1:enc.num_steps
@@ -176,14 +194,22 @@ function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false)
 			(verbose && typeof(ac) == UAM_BLENDED) ? println(action) : nothing
 			dynamics!(ac, action, enc.dt)
 		end
-		# get next mdp state - mdp_state(phys_state)
-		ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
-		verbose ? println(ac1.curr_belief_state) : nothing
-		# println(ac1.curr_phys_state)
-		# println(ac2.curr_phys_state)
-		# println()
-		ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
-		update_encounter_output!(enc.enc_out, enc.aircraft)
+		if sim.surveillance_on
+			make_observation!(ac1)
+			make_observation!(ac2)
+			update_belief!(ac1, ac2, enc.dt)
+		else
+			ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
+			ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
+		end
+		# # get next mdp state - mdp_state(phys_state)
+		# ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
+		# verbose ? println(ac1.curr_belief_state) : nothing
+		# # println(ac1.curr_phys_state)
+		# # println(ac2.curr_phys_state)
+		# # println()
+		# ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
+		update_encounter_output!(enc.enc_out, enc.aircraft, surveillance_on=surveillance_on)
 	end
 end
 
@@ -255,6 +281,30 @@ function get_vert_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_
 	return VERT_STATE(h, ḣ₀, ḣ₁, pra, τ)
 end
 
+function get_vert_state(p_own::Vector, v_own::Vector, p_int::Vector, v_int::Vector, a_prev::ACTION, dt::Float64)
+	h = p_int[3] - p_own[3]
+	ḣ₀ = v_own[3]
+	ḣ₁ = v_int[3]
+
+	# Figure out tau
+	p₁ = [p_int[1], p_int[2]]
+	p₀ = [p_own[1], p_own[2]]
+	v₁ = [v_int[1], v_int[2]]
+	v₀ = [v_own[1], v_own[2]]
+	r = norm(p₁ - p₀)
+	r_next = norm((p₁ + v₁*dt) - (p₀ + v₀*dt))
+	ṙ = r - r_next
+	τ = r < 500ft2m ? 0 : (r - 500ft2m)/ṙ
+
+	if τ < 0
+		τ = Inf
+	end
+
+	pra = length(a_prev) > 1 ? a_prev[1] : a_prev
+
+	return VERT_STATE(h, ḣ₀, ḣ₁, pra, τ)
+end
+
 # NOTE: I was dumb with units and I think I need to convert everything horizontal from m to ft
 function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_prev::ACTION, dt::Float64)
 	p = (int_state.p[1:2] - own_state.p[1:2])*m2ft
@@ -276,6 +326,47 @@ function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a
 
 	h = int_state.p[3] - own_state.p[3]
 	ḣ = int_state.v[3] - own_state.v[3]
+	h_subtract = h < 0 ? -100 : 100
+	τ = abs(h) < 100.0 ? 0.0 : (h - h_subtract)/ḣ
+
+	if τ ≤ 0.0
+		τ = -τ
+	else
+		τ = Inf
+	end
+
+	# τ = h < 100.0 ? 0.0 : (h - 100.0)/ḣ
+
+	# if τ < 0.0
+	# 	τ = Inf
+	# end
+
+	pra = length(a_prev) > 1 ? a_prev[2] : a_prev
+
+	return SPEED_STATE(r, θ, ψ, v₀, v₁, pra, τ)
+end
+
+# NOTE: I was dumb with units and I think I need to convert everything horizontal from m to ft
+function get_speed_state(p_own::Vector, v_own::Vector, p_int::Vector, v_int::Vector, a_prev::ACTION, dt::Float64)
+	p = (p_int[1:2] - p_own[1:2])*m2ft
+	r = norm(p)
+
+	# θv₀ = atan(own_state.v[2], own_state.v[1])
+	# rot_mat = [cos(θv₀) -sin(θv₀); sin(θv₀) cos(θv₀)]
+	heading = atan(v_own[2], v_own[1])
+	rot_mat = [cos(heading) -sin(heading); sin(heading) cos(heading)]
+
+	p_rot = rot_mat*p
+	θ = atan(p_rot[2], p_rot[1])
+
+	v₁_rot = rot_mat*v_int[1:2]
+	ψ = atan(v₁_rot[2], v₁_rot[1])
+
+	v₀ = norm(v_own[1:2])*mps2fps
+	v₁ = norm(v_int[1:2])*mps2fps
+
+	h = p_int[3] - p_own[3]
+	ḣ = v_int[3] - v_own[3]
 	h_subtract = h < 0 ? -100 : 100
 	τ = abs(h) < 100.0 ? 0.0 : (h - h_subtract)/ḣ
 
@@ -582,6 +673,8 @@ function reset!(ac::AIRCRAFT)
 	ac.ÿ = Vector{Float64}()
 	ac.z̈ = Vector{Float64}()
 	ac.curr_action = COC
+	ac.tracker = kalman_filter()
+	ac.curr_observation = observation_state()
 	ac.curr_belief_state = belief_state()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
@@ -595,6 +688,8 @@ function reset!(ac::Union{UAM_VERT, UAM_VERT_PO})
 	ac.ÿ = Vector{Float64}()
 	ac.z̈ = Vector{Float64}()
 	ac.curr_action = COC
+	ac.tracker = kalman_filter()
+	ac.curr_observation = observation_state()
 	ac.curr_belief_state = belief_state()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false
@@ -609,6 +704,8 @@ function reset!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT})
 	ac.ÿ = Vector{Float64}()
 	ac.z̈ = Vector{Float64}()
 	ac.curr_action = [COC, COC]
+	ac.tracker = kalman_filter()
+	ac.curr_observation = observation_state()
 	ac.curr_belief_state = Vector{BELIEF_STATE}()
 	ac.curr_phys_state = physical_state()
 	ac.alerted = false

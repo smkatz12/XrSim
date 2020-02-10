@@ -77,3 +77,19 @@ nTau_max = 100
 dt_speed_q = 4
 τs_speed = collect(0:dt_speed_q:nTau_max)
 intents = collect(0:2)
+
+"""
+-------------------------------------------
+STM Parameters
+-------------------------------------------
+"""
+# https://mode-s.org/decode/adsb/uncertainty.html
+# These (NACp's) are in meters!!!!!
+NACp_σ = Dict(11=>1.5, 10=>5, 9=>15, 8=>46.5, 7=>92.5, 
+			  6=>278, 5=>463, 4=>926, 3=>1852, 2=>3704, 1=>9620)
+
+alt_σ = 4.7 # ft (from csim)
+vh_σ = 1.5 # m/s (corresponds to NACv = 2)
+vz_σ = 0.75 # ft/s (corresponds to NACv = 4)
+
+belief_size = 5
