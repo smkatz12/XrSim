@@ -163,9 +163,9 @@ function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vecto
 		push!(enc_out.ac1_tracker_hist.observations, acs[1].curr_observation)
 		push!(enc_out.ac1_tracker_hist.μb, acs[1].tracker.μb)
 		push!(enc_out.ac1_tracker_hist.Σb, acs[1].tracker.Σb)
-		push!(enc_out.ac2_tracker_hist.observations, acs[1].curr_observation)
-		push!(enc_out.ac2_tracker_hist.μb, acs[1].tracker.μb)
-		push!(enc_out.ac2_tracker_hist.Σb, acs[1].tracker.Σb)
+		push!(enc_out.ac2_tracker_hist.observations, acs[2].curr_observation)
+		push!(enc_out.ac2_tracker_hist.μb, acs[2].tracker.μb)
+		push!(enc_out.ac2_tracker_hist.Σb, acs[2].tracker.Σb)
 	end
 end
 
@@ -173,8 +173,10 @@ end
 function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false, surveillance_on=false)
 	ac1 = enc.aircraft[1]
 	ac2 = enc.aircraft[2]
+	# Sample NACp for intruder
+	ac2.NACp = rand(NACp_dist) + 7
 	# Get initial state (physical and mdp) and set it to current state
-	if sim.surveillance_on
+	if sim.surveillance_on && typeof(ac1) != HEURISTIC_VERT
 		make_observation!(ac1)
 		make_observation!(ac2)
 		ac1.tracker = kalman_filter(μb=[ac1.curr_phys_state.p; ac1.curr_phys_state.v; ac2.curr_phys_state.p; ac2.curr_phys_state.v])

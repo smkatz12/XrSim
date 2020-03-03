@@ -87,9 +87,16 @@ STM Parameters
 # These (NACp's) are in meters!!!!!
 NACp_σ = Dict(11=>1.5, 10=>5, 9=>15, 8=>46.5, 7=>92.5, 
 			  6=>278, 5=>463, 4=>926, 3=>1852, 2=>3704, 1=>9620)
+NACp_σ_vert = Dict(11=>2m2ft, 10=>7.5m2ft, 9=>22.5m2ft, 8=>22.5m2ft, 7=>22.5m2ft, 
+			  6=>22.5m2ft, 5=>22.5m2ft, 4=>22.5m2ft, 3=>22.5m2ft, 2=>22.5m2ft, 1=>22.5m2ft)
 
-alt_σ = 4.7 # ft (from csim)
-vh_σ = 1.5 # m/s (corresponds to NACv = 2)
-vz_σ = 0.75 # ft/s (corresponds to NACv = 4)
+NACp_dist = Categorical([0.506, 0.403, 0.091])
+
+alt_σ = 4.7 # ft (from csim) # I think is no longer going to be used
+vh_σ = 0.5 # m/s (corresponds to NACv = 3) # was 2
+vz_σ = 2.5 # ft/s (corresponds to NACv = 3) # was 4
+
+int_ah_σ = 0.04g_mps
+int_az_σ = 0.02g
 
 belief_size = 5
