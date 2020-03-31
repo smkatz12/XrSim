@@ -47,3 +47,23 @@ To visualize the output of a simulation, you can use UAMEncounterViewer.jl in an
 
 `SIMULATION` - object containing an encounter file and simulation output to be simulated
 
+## File Descriptions
+`src/Xr.jl` - Main file to include for simulation that includes all necessary files and packages
+
+`src/XrConst.jl` - Defines constants used in simulations
+
+`src/XrInterface.jl` - Functions to interface with encounter generator
+
+`src/XrLogic.jl` - Contains heuristic logic and functions for looking up actions in MDP logic tables
+
+`src/XrSim.jl` - Main functions for simulating encounters
+
+`src/XrTypes.jl` - Defines all of types and their constructors
+
+`visualization/EncounterViewerNotebook.ipynb` - Notebook to run to simulate and visualize encounters
+
+`visualization/UAMEncounterViewer.jl` - Main file to include for encounter visualization
+
+`visualization/UAMEncounterViewerFunctions.jl` - Functions for encounter viewer; will run an interactive Jupyter session
+
+`visualization/aircraftshapes.sty` - latex file for aircraft shapes
