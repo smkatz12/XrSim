@@ -14,13 +14,34 @@ sim.acs[1] = uam_vert(q_file = "../data_files/Xr_vertical.bin")
 sim.enc_file = "data_files/enc_file.bin"
 xr_sim!(sim)
 ```
+
 The function `xr_sim!(sim::SIMULATION)` will modify the simulation output in the simulation object. For example, to access the trajectory of the ownship after running the lines above use:
 
 ```julia
 sim.sim_out.ac1_trajectory
 ```
 
-To visualize the output of a simulation, you can use UAMEncounterViewer.jl in an interactive Jupyter session. See EncounterViewerNotebook for details. 
+The default simulation output will output the entire trajectory of each aircraft for all of the encounters. This may be undesirable if simulating a lot of encounters. The following lines allow you to only output a summary information for the entire encounter set:
+
+```julia
+sim = simulation()
+sim.acs[1] = uam_vert(q_file = "../data_files/Xr_vertical.bin")
+sim.enc_file = "data_files/enc_file.bin"
+sim.sim_out = small_simulation_output()
+xr_sim!(sim)
+```
+
+The simulation output will now contain the number of NMACs and alerts and the encounter indices at which they occured. You can then go back and simulate only these encounters using the full simulation output for visualization:
+
+```julia
+inds = sim.sim_out.nmac_inds
+sim = simulation()
+sim.acs[1] = uam_vert(q_file = "../data_files/Xr_vertical.bin")
+sim.enc_file = "data_files/enc_file.bin"
+xr_sim!(sim, inds)
+```
+
+To visualize the output of a simulation, you can use `UAMEncounterViewer.jl` in an interactive Jupyter session. See `EncounterViewerNotebook.ipynb` for details. 
 
 ## Type Descriptions
 `PHYSICAL_STATE` - contains a position, velocity, acceleration (all 3D), and heading. Horizontal values are in meters. Vertical values are in feet. Heading is in radians. NOTE: all horizontal values in the code (until right before looking up in table) are in meters and vertical values in feet. This should probably be changed in the future.
@@ -66,4 +87,4 @@ To visualize the output of a simulation, you can use UAMEncounterViewer.jl in an
 
 `visualization/UAMEncounterViewerFunctions.jl` - Functions for encounter viewer; will run an interactive Jupyter session
 
-`visualization/aircraftshapes.sty` - latex file for aircraft shapes
+`visualization/aircraftshapes.sty` - Latex file for aircraft shapes
