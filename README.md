@@ -8,7 +8,7 @@ Ensure that the following packages are installed in your current version of Juli
 
 The following lines of code will simulate the encounters in the file `data_files/enc_file.bin` for an ownship equipped with Xr vertical logic (table located at `data_files/Xr_vertical.bin`) and an intruder that is unequipped.
 
-```
+```julia
 sim = simulation()
 sim.acs[1] = uam_vert(q_file = "../data_files/Xr_vertical.bin")
 sim.enc_file = "data_files/enc_file.bin"
@@ -16,7 +16,7 @@ xr_sim!(sim)
 ```
 The function `xr_sim!(sim::SIMULATION)` will modify the simulation output in the simulation object. For example, to access the trajectory of the ownship after running the lines above use:
 
-```
+```julia
 sim.sim_out.ac1_trajectory
 ```
 
