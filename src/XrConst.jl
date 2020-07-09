@@ -69,6 +69,9 @@ v₀s = [0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 36.0].*mps2fps   #ft
 v₁s = [0.0, 8.0, 16.0, 24.0, 32.0, 40.0].*mps2fps #ft/s
 a_prevs = collect(0:4) # Check this (NOTE: this is same as above and has to be)
 
+v₀max = v₀s[end]/mps2fps
+v₁max = v₁s[end]/mps2fps
+
 NOMINAL = 0
 LANDING = 1
 TAKEOFF = 2

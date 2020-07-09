@@ -19,7 +19,7 @@ end
 abstract type MDP_STATE
 end
 
-struct VERT_STATE <: MDP_STATE
+mutable struct VERT_STATE <: MDP_STATE
 	h::Float64
 	ḣ₀::Float64
 	ḣ₁::Float64
@@ -27,7 +27,7 @@ struct VERT_STATE <: MDP_STATE
 	τ::Float64
 end
 
-struct SPEED_STATE <: MDP_STATE
+mutable struct SPEED_STATE <: MDP_STATE
 	r::Float64
 	θ::Float64
 	ψ::Float64
@@ -37,7 +37,7 @@ struct SPEED_STATE <: MDP_STATE
 	τ::Float64
 end
 
-struct SPEED_STATE_INTENT <: MDP_STATE
+mutable struct SPEED_STATE_INTENT <: MDP_STATE
 	r::Float64
 	θ::Float64
 	ψ::Float64
@@ -189,6 +189,7 @@ mutable struct UAM_SPEED <: AIRCRAFT
 	curr_phys_state::PHYSICAL_STATE
 	alerted::Bool
 	responsive::Bool
+	perform_scaling::Bool
 	init_delay::Int64
 	init_delay_counter::Int64
 	subseq_delay::Int64
@@ -436,6 +437,7 @@ function uam_speed(;ẍ = Vector{Float64}(),
 				   curr_phys_state = physical_state(),
 				   alerted = false,
 				   responsive = true,
+				   perform_scaling = false,
 				   init_delay = 0,
 				   init_delay_counter = 0,
 				   subseq_delay = 0,
@@ -450,7 +452,7 @@ function uam_speed(;ẍ = Vector{Float64}(),
 	close(s)
 	return UAM_SPEED(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
-						alerted, responsive, init_delay, init_delay_counter, 
+						alerted, responsive, perform_scaling, init_delay, init_delay_counter, 
 						subseq_delay, subseq_delay_counter, curr_step, grid, qmat)
 end
 
