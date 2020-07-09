@@ -222,9 +222,13 @@ end
 
 # Fully observable - speed
 function get_belief_state(ownship::UAM_SPEED, intruder::AIRCRAFT, dt::Float64)
-	own_speed = norm(ownship.curr_phys_state.v[1:2])
-	int_speed = norm(intruder.curr_phys_state.v[1:2])
-	scale_factor = max(own_speed / v₀max, int_speed / v₁max)
+	scale_factor = 0
+	if ownship.perform_scaling
+		own_speed = norm(ownship.curr_phys_state.v[1:2])
+		int_speed = norm(intruder.curr_phys_state.v[1:2])
+		scale_factor = max(own_speed / v₀max, int_speed / v₁max)
+	end
+
 	speed_state = get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)
 	
 	if scale_factor > 1
