@@ -115,7 +115,7 @@ function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 	for i = 30:length(τ₀)
 		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
 		v_sep = get_vert_sep(τ₀[i], τ₁[i])
-		nmac = h_sep < 500ft2m && v_sep < 100ft2m
+		nmac = h_sep < 500ft2m && v_sep < 100 #ft2m
 		if nmac
 			return true
 		end
@@ -245,8 +245,23 @@ function get_belief_state(ownship::UAM_SPEED_INTENT, intruder::AIRCRAFT, dt::Flo
 end
 
 function get_belief_state(ownship::UAM_BLENDED, intruder::AIRCRAFT, dt::Float64)
+	scale_factor = 0
+	if ownship.perform_scaling
+		own_speed = norm(ownship.curr_phys_state.v[1:2])
+		int_speed = norm(intruder.curr_phys_state.v[1:2])
+		scale_factor = max(own_speed / v₀max, int_speed / v₁max)
+	end
+
+	speed_state = get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)
+	
+	if scale_factor > 1
+		speed_state.r /= scale_factor
+		speed_state.v₀ /= scale_factor
+		speed_state.v₁ /= scale_factor
+	end
+
 	return [BELIEF_STATE([get_vert_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0]),
-			BELIEF_STATE([get_speed_state(ownship.curr_phys_state, intruder.curr_phys_state, ownship.curr_action, dt)], [1.0])]
+			BELIEF_STATE([speed_state], [1.0])]
 end
 
 function get_belief_state(ownship::UAM_BLENDED_INTENT, intruder::AIRCRAFT, dt::Float64)

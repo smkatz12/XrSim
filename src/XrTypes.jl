@@ -234,6 +234,7 @@ mutable struct UAM_BLENDED <: AIRCRAFT
 	alerted_vert::Bool
 	alerted_speed::Bool
 	responsive::Bool
+	perform_scaling::Bool
 	init_delay::Int64
 	init_delay_counter::Int64
 	subseq_delay::Int64
@@ -498,6 +499,7 @@ function uam_blended(;ẍ = Vector{Float64}(),
 				   alerted_vert = false,
 				   alerted_speed = false,
 				   responsive = true,
+				   perform_scaling = false,
 				   init_delay = 0,
 				   init_delay_counter = 0,
 				   subseq_delay = 0,
@@ -520,7 +522,7 @@ function uam_blended(;ẍ = Vector{Float64}(),
 	close(s)
 	return UAM_BLENDED(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
-						alerted, alerted_vert, alerted_speed, responsive, 
+						alerted, alerted_vert, alerted_speed, responsive, perform_scaling,
 						init_delay, init_delay_counter, subseq_delay, subseq_delay_counter, 
 						on_flight_path, curr_step, grid_vert, qmat_vert, grid_speed, qmat_speed)
 end
