@@ -115,7 +115,7 @@ function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 	for i = 30:length(τ₀)
 		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
 		v_sep = get_vert_sep(τ₀[i], τ₁[i])
-		nmac = h_sep < 500ft2m && v_sep < 100ft2m
+		nmac = h_sep < 500ft2m && v_sep < 100 #ft2m
 		if nmac
 			return true
 		end
