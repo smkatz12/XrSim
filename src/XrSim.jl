@@ -543,7 +543,7 @@ function dynamics!(ac::AIRCRAFT, action::Int64, dt::Float64)
 		next_a = [ac.ẍ[ac.curr_step], ac.ÿ[ac.curr_step], next_az]
 	end
 
-	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
+	next_p = curr_p + curr_v*dt #+ 0.5*next_a*dt^2
 	#println(next_p[3])
 	next_v = curr_v + next_a*dt
 	next_h = norm(next_v) > 1e-9 ? atan(next_v[2], next_v[1]) : curr_h
