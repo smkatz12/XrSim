@@ -472,12 +472,15 @@ function encounter_viewer
 """
 function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, alert_type::Symbol=:vert)
 	currSavePlot = 0
+	first_call = true # work-around: avoid calling latex for first plot (refer to Refresh button)
 
 	@manipulate for fileName in textbox(value="myFile.pdf",label="File Name") |> onchange,
 		savePlot in button("Save Plot"),
-		enc in spinbox(1:length(sim_out.ac1_trajectories)),
+		vl in pad(0.3em, nothing),
+		refreshPlot in button("Refresh"),
+		enc in spinbox(1:length(sim_out.ac1_trajectories), label="Encounter:"),
 		# making assumption that all input encounters are the same length (can change later)
-		t in slider(0:1:sim_out.times[end], value=0)
+		t in slider(0:1:sim_out.times[end], value=0, label="Time:")
 
 		enc_ind = convert(Int64, enc)
 		τs = Vector{XR_TRAJECTORY}()
@@ -489,7 +492,7 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, aler
 		push!(actions, sim_out.ac2_actions[enc_ind])
 
 		sc_horizontal = alert_type == :vert ? sc_vert : sc_speed
-        sc_vertical = alert_type == :speed ? sc_speed : sc_vert
+		sc_vertical = alert_type == :speed ? sc_speed : sc_vert
 
 		a_horiz = plot_ground_track(τs)
 		a_horiz = draw_AC_horizontal(sim_out.times, τs, t, a_horiz, int_type)
@@ -519,6 +522,12 @@ function encounter_viewer(sim_out::SIMULATION_OUTPUT; int_type::Symbol=:AC, aler
 			PGFPlots.save(fileName, g2, include_preamble=false)
 		end
 
-		return g
+		if first_call
+			first_call = false
+			PGFPlots.cleanup(g)
+			return nothing
+		else
+			return g
+		end
 	end
 end
