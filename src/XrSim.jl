@@ -207,7 +207,8 @@ function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false, surveillance_on=f
 		# # get next mdp state - mdp_state(phys_state)
 		# ac1.curr_belief_state = get_belief_state(ac1, ac2, enc.dt)
 		# verbose ? println(ac1.curr_belief_state) : nothing
-		# # println(ac1.curr_phys_state)
+		# println(ac1.curr_step)
+		# println(ac1.curr_belief_state)
 		# # println(ac2.curr_phys_state)
 		# # println()
 		# ac2.curr_belief_state = get_belief_state(ac2, ac1, enc.dt)
@@ -339,13 +340,14 @@ end
 
 # NOTE: I was dumb with units and I think I need to convert everything horizontal from m to ft
 function get_speed_state(own_state::PHYSICAL_STATE, int_state::PHYSICAL_STATE, a_prev::ACTION, dt::Float64)
-	p = (int_state.p[1:2] - own_state.p[1:2])*m2ft
+	p = (int_state.p[1:2] - own_state.p[1:2]).*m2ft
 	r = norm(p)
 
 	# θv₀ = atan(own_state.v[2], own_state.v[1])
 	# rot_mat = [cos(θv₀) -sin(θv₀); sin(θv₀) cos(θv₀)]
 
-	rot_mat = [cos(own_state.h) -sin(own_state.h); sin(own_state.h) cos(own_state.h)]
+	#rot_mat = [cos(own_state.h) -sin(own_state.h); sin(own_state.h) cos(own_state.h)]
+	rot_mat = [cos(own_state.h) sin(own_state.h); -sin(own_state.h) cos(own_state.h)]
 
 	p_rot = rot_mat*p
 	θ = atan(p_rot[2], p_rot[1])
