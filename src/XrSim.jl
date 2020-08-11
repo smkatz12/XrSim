@@ -603,7 +603,7 @@ function dynamics!(ac::Union{UAM_SPEED, UAM_SPEED_INTENT}, action::Int64, dt::Fl
 		next_a = [accel*cos(v_angle), accel*sin(v_angle), ac.z̈[ac.curr_step]]
 	end
 
-	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
+	next_p = curr_p + curr_v*dt # + 0.5*next_a*dt^2
 	next_v = curr_v + next_a*dt
 	next_h = norm(next_v[1:2]) > 1e-9 ? atan(next_v[2], next_v[1]) : curr_h
 
@@ -693,7 +693,7 @@ function dynamics!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT}, action::Vector{In
 		next_a = [next_ax, next_ay, next_az]
 	end
 
-	next_p = curr_p + curr_v*dt + 0.5*next_a*dt^2
+	next_p = curr_p + curr_v*dt # + 0.5*next_a*dt^2
 	next_v = curr_v + next_a*dt
 	next_h = norm(next_v[1:2]) > 1e-9 ? atan(next_v[2], next_v[1]) : curr_h
 
