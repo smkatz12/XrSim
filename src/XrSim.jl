@@ -95,6 +95,7 @@ function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, en
 	push!(sim_out.ac2_actions, enc.enc_out.ac2_actions)
 	push!(sim_out.ac1_tracker_hists, enc.enc_out.ac1_tracker_hist)
 	push!(sim_out.ac2_tracker_hists, enc.enc_out.ac2_tracker_hist)
+	update_output!(sim, sim_out.small_sim_out, enc)
 end
 
 function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
@@ -191,11 +192,13 @@ function simulate_encounter!(enc::XR_ENCOUNTER; verbose=false, surveillance_on=f
 	# For each time step in the encounter
 	for i = 1:enc.num_steps
 		# For each aircraft in the encounter
-		for ac in enc.aircraft
+		for (address, ac) in enumerate(enc.aircraft)
 			action = select_action(ac)
 			(verbose && typeof(ac) == UAM_BLENDED) ? println(action) : nothing
 			dynamics!(ac, action, enc.dt)
+			update_coordination!(ac, address)
 		end
+		send_coordination!(enc.aircraft)
 		if  surveillance_on
 			make_observation!(ac1)
 			make_observation!(ac2)
@@ -702,6 +705,7 @@ function dynamics!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT}, action::Vector{In
 	ac.curr_step += 1
 end
 
+
 function reset!(ac::AIRCRAFT)
 	ac.ẍ = Vector{Float64}()
 	ac.ÿ = Vector{Float64}()
@@ -715,6 +719,22 @@ function reset!(ac::AIRCRAFT)
 	ac.init_delay_counter = 1
 	ac.subseq_delay_counter = 1
 	ac.curr_step = 1
+end
+
+function reset!(ac::Union{UAM_SPEED, UAM_SPEED_INTENT})
+	ac.ẍ = Vector{Float64}()
+	ac.ÿ = Vector{Float64}()
+	ac.z̈ = Vector{Float64}()
+	ac.curr_action = COC
+	ac.tracker = kalman_filter()
+	ac.curr_observation = observation_state()
+	ac.curr_belief_state = belief_state()
+	ac.curr_phys_state = physical_state()
+	ac.alerted = false
+	ac.init_delay_counter = 1
+	ac.subseq_delay_counter = 1
+	ac.curr_step = 1
+	ac.coordination = SPEED_COORDINATION(enabled=ac.coordination.enabled)
 end
 
 function reset!(ac::Union{UAM_VERT, UAM_VERT_PO})
@@ -731,6 +751,7 @@ function reset!(ac::Union{UAM_VERT, UAM_VERT_PO})
 	ac.init_delay_counter = 1
 	ac.subseq_delay_counter = 1
 	ac.curr_step = 1
+	ac.coordination = VERTICAL_COORDINATION(enabled=ac.coordination.enabled)
 end
 
 function reset!(ac::Union{UAM_BLENDED, UAM_BLENDED_INTENT})

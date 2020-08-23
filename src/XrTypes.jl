@@ -64,6 +64,25 @@ struct TRACKER_HISTORY
 	Σb::Vector{Matrix{Float64}}
 end
 
+abstract type COORDINATION end
+
+@with_kw mutable struct VERTICAL_COORDINATION <: COORDINATION
+    enabled::Bool = false # Option to toggle coordination on/off
+    address::Int64 = 0 # Aircraft ID/address for tie-breaking
+    own_sense::Symbol = :none # Ownship sense, defaults to :none. Options include :up and :down.
+    int_sense::Symbol = :none # Intruder sense, defaults to :none (NOTE: only single intruder support i.e. no multithreat)
+    isfollower::Bool = false # Indicate who's the follower (the follower penalizes conflicting actions)
+end
+
+@with_kw mutable struct SPEED_COORDINATION <: COORDINATION
+    enabled::Bool = false # Option to toggle coordination on/off
+    address::Int64 = 0 # Aircraft ID/address for tie-breaking
+    own_sense::Symbol = :none # Ownship sense, defaults to :none. Options include :accel and :decel.
+    int_sense::Symbol = :none # Intruder sense, defaults to :none (NOTE: only single intruder support i.e. no multithreat)
+    isfollower::Bool = false # Indicate who's the follower (the follower penalizes conflicting actions)
+end
+
+
 XR_TRAJECTORY = Vector{PHYSICAL_STATE}
 ACTION = Union{Int64, Vector{Int64}}
 ACTION_SEQUENCE = Vector{ACTION}
@@ -105,6 +124,7 @@ function tracker_history(;observations = Vector{OBSERVATION_STATE}(),
 							μb = Vector{Vector{Float64}}(), Σb = Vector{Matrix{Float64}}())
 	return TRACKER_HISTORY(observations, μb, Σb)
 end
+
 
 """
 -------------------------------------------
@@ -153,6 +173,7 @@ mutable struct UAM_VERT <: AIRCRAFT
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
+	coordination::VERTICAL_COORDINATION
 end
 
 mutable struct UAM_VERT_PO <: AIRCRAFT
@@ -175,6 +196,7 @@ mutable struct UAM_VERT_PO <: AIRCRAFT
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
+	coordination::VERTICAL_COORDINATION
 end
 
 mutable struct UAM_SPEED <: AIRCRAFT
@@ -197,6 +219,7 @@ mutable struct UAM_SPEED <: AIRCRAFT
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
+	coordination::SPEED_COORDINATION
 end
 
 mutable struct UAM_SPEED_INTENT <: AIRCRAFT
@@ -218,6 +241,7 @@ mutable struct UAM_SPEED_INTENT <: AIRCRAFT
 	curr_step::Int64
 	grid::RectangleGrid
 	qmat::Array{Float64,2}
+	coordination::SPEED_COORDINATION
 end
 
 mutable struct UAM_BLENDED <: AIRCRAFT
@@ -315,6 +339,14 @@ end
 abstract type SIMULATION_OUTPUT
 end
 
+mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
+	nmacs::Int64
+	nmac_inds::Vector{Int64}
+	alerts::Int64
+	alert_inds::Vector{Int64}
+	times::Vector{Float64}
+end
+
 mutable struct PAIRWISE_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	ac1_trajectories::Vector{XR_TRAJECTORY}
 	ac2_trajectories::Vector{XR_TRAJECTORY}
@@ -322,14 +354,7 @@ mutable struct PAIRWISE_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	ac2_actions::Vector{ACTION_SEQUENCE}
 	ac1_tracker_hists::Vector{TRACKER_HISTORY}
 	ac2_tracker_hists::Vector{TRACKER_HISTORY}
-	times::Vector{Float64}
-end
-
-mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
-	nmacs::Int64
-	nmac_inds::Vector{Int64}
-	alerts::Int64
-	alert_inds::Vector{Int64}
+	small_sim_out::SMALL_SIMULATION_OUTPUT
 	times::Vector{Float64}
 end
 
@@ -385,7 +410,8 @@ function uam_vert(;ẍ = Vector{Float64}(),
 				   on_flight_path=true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
-				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
+				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert),
+				   coordination = VERTICAL_COORDINATION())
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
@@ -394,7 +420,7 @@ function uam_vert(;ẍ = Vector{Float64}(),
 	return UAM_VERT(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
 						alerted, responsive, init_delay, init_delay_counter, 
-						subseq_delay, subseq_delay_counter, on_flight_path, curr_step, grid, qmat)
+						subseq_delay, subseq_delay_counter, on_flight_path, curr_step, grid, qmat, coordination)
 end
 
 function uam_vert_po(;ẍ = Vector{Float64}(),
@@ -415,7 +441,8 @@ function uam_vert_po(;ẍ = Vector{Float64}(),
 				   on_flight_path=true,
 				   curr_step = 1,
 				   q_file = "data_files/xr_vert.bin",
-				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert))
+				   grid = RectangleGrid(hs, ḣ₀s, ḣ₁s, a_prevs, τs_vert),
+				   coordination = VERTICAL_COORDINATION())
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
@@ -424,7 +451,7 @@ function uam_vert_po(;ẍ = Vector{Float64}(),
 	return UAM_VERT_PO(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
 						alerted, responsive, init_delay, init_delay_counter, 
-						subseq_delay, subseq_delay_counter, on_flight_path, curr_step, grid, qmat)
+						subseq_delay, subseq_delay_counter, on_flight_path, curr_step, grid, qmat, coordination)
 end
 
 function uam_speed(;ẍ = Vector{Float64}(),
@@ -445,7 +472,8 @@ function uam_speed(;ẍ = Vector{Float64}(),
 				   subseq_delay_counter = 0,
 				   curr_step = 1,
 				   q_file = "data_files/xr_speed.bin",
-				   grid = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed))
+				   grid = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed),
+				   coordination = SPEED_COORDINATION())
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
@@ -454,7 +482,7 @@ function uam_speed(;ẍ = Vector{Float64}(),
 	return UAM_SPEED(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
 						alerted, responsive, perform_scaling, init_delay, init_delay_counter, 
-						subseq_delay, subseq_delay_counter, curr_step, grid, qmat)
+						subseq_delay, subseq_delay_counter, curr_step, grid, qmat, coordination)
 end
 
 function uam_speed_intent(;ẍ = Vector{Float64}(),
@@ -474,7 +502,8 @@ function uam_speed_intent(;ẍ = Vector{Float64}(),
 				   subseq_delay_counter = 0,
 				   curr_step = 1,
 				   q_file = "data_files/test_speed_intent.bin",
-				   grid = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed, intents))
+				   grid = RectangleGrid(rs, θs, ψs, v₀s, v₁s, a_prevs, τs_speed, intents),
+				   coordination = SPEED_COORDINATION)
 	s = open(q_file)
 	m = read(s, Int)
 	n = read(s, Int)
@@ -483,7 +512,7 @@ function uam_speed_intent(;ẍ = Vector{Float64}(),
 	return UAM_SPEED_INTENT(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
 						alerted, responsive, init_delay, init_delay_counter, 
-						subseq_delay, subseq_delay_counter, curr_step, grid, qmat)
+						subseq_delay, subseq_delay_counter, curr_step, grid, qmat, coordination)
 end
 
 function uam_blended(;ẍ = Vector{Float64}(),
@@ -590,23 +619,24 @@ function heuristic_vert(;ẍ = Vector{Float64}(),
 						subseq_delay, subseq_delay_counter, on_flight_path, curr_step)
 end
 
-function pairwise_simulation_output(;ac1_trajectories = Vector{XR_TRAJECTORY}(),
-									 ac2_trajectories = Vector{XR_TRAJECTORY}(),
-									 ac1_actions = Vector{ACTION_SEQUENCE}(),
-									 ac2_actions = Vector{ACTION_SEQUENCE}(),
-									 ac1_tracker_hists = Vector{TRACKER_HISTORY}(),
-									 ac2_tracker_hists = Vector{TRACKER_HISTORY}(),
-									 times = Vector{Float64}())
-	return PAIRWISE_SIMULATION_OUTPUT(ac1_trajectories, ac2_trajectories, ac1_actions, ac2_actions,
-										ac1_tracker_hists, ac2_tracker_hists, times)
-end
-
 function small_simulation_output(;nmacs = 0,
 								nmac_inds = Vector{Int64}(), 
 								alerts = 0,
 								alert_inds = Vector{Int64}(),
 								times = Vector{Float64}())
 	return SMALL_SIMULATION_OUTPUT(nmacs, nmac_inds, alerts, alert_inds, times)
+end
+
+function pairwise_simulation_output(;ac1_trajectories = Vector{XR_TRAJECTORY}(),
+									 ac2_trajectories = Vector{XR_TRAJECTORY}(),
+									 ac1_actions = Vector{ACTION_SEQUENCE}(),
+									 ac2_actions = Vector{ACTION_SEQUENCE}(),
+									 ac1_tracker_hists = Vector{TRACKER_HISTORY}(),
+									 ac2_tracker_hists = Vector{TRACKER_HISTORY}(),
+									 small_sim_out = small_simulation_output(),
+									 times = Vector{Float64}())
+	return PAIRWISE_SIMULATION_OUTPUT(ac1_trajectories, ac2_trajectories, ac1_actions, ac2_actions,
+										ac1_tracker_hists, ac2_tracker_hists, small_sim_out, times)
 end
 
 function pairwise_encounter_output(;ac1_trajectory = XR_TRAJECTORY(),

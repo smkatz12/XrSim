@@ -14,6 +14,7 @@ function select_action(ac::Union{UAM_VERT, UAM_VERT_PO, UAM_SPEED, UAM_SPEED_INT
 	for i = 1:length(bs.states)
 		q .+= bs.probs[i]*interp_q(ac, bs.states[i])
 	end
+	q = coordination_penalty!(ac, q)
 	return argmax(q) - 1 # Off by 1 due to indexing at 1
 end
 
