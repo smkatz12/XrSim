@@ -88,6 +88,10 @@ function initialize_encounter_output(sim_out::SMALL_SIMULATION_OUTPUT, aircraft:
 	return pairwise_encounter_output()
 end
 
+function initialize_encounter_output(sim_out::SAFETY_SIMULATION_OUTPUT, aircraft::Vector{AIRCRAFT})
+	return pairwise_encounter_output()
+end
+
 function update_output!(sim::SIMULATION, sim_out::PAIRWISE_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
 	push!(sim_out.ac1_trajectories, enc.enc_out.ac1_trajectory)
 	push!(sim_out.ac2_trajectories, enc.enc_out.ac2_trajectory)
@@ -103,10 +107,77 @@ function update_output!(sim::SIMULATION, sim_out::SMALL_SIMULATION_OUTPUT, enc::
 		sim_out.nmacs += 1
 		push!(sim_out.nmac_inds, sim.curr_enc)
 	end
+	if is_lowc(enc.enc_out) 
+		sim_out.lowcs += 1
+		push!(sim_out.lowc_inds, sim.curr_enc)
+	end
 	if is_alert(enc.enc_out)
 		sim_out.alerts += 1
 		push!(sim_out.alert_inds, sim.curr_enc)
 	end
+end
+
+function update_output!(sim::SIMULATION, sim_out::SAFETY_SIMULATION_OUTPUT, enc::XR_ENCOUNTER)
+	if is_nmac(enc.enc_out) 
+		sim_out.nmacs += 1
+		push!(sim_out.nmac_inds, sim.curr_enc)
+	end
+	if is_lowc(enc.enc_out) 
+		sim_out.lowcs += 1
+		push!(sim_out.lowc_inds, sim.curr_enc)
+	end
+	if is_alert(enc.enc_out)
+		sim_out.alerts += 1
+		push!(sim_out.alert_inds, sim.curr_enc)
+	end
+	if is_same_speed_sense(enc.enc_out)
+		sim_out.same_speed_sense += 1
+		push!(sim_out.same_speed_sense_inds, sim.curr_enc)
+	end
+	if is_oppo_speed_sense(enc.enc_out)
+		sim_out.oppo_speed_sense += 1
+		push!(sim_out.oppo_speed_sense_inds, sim.curr_enc)
+	end
+end
+
+function is_same_speed_sense(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
+	for i = 1:length(enc_out.ac1_actions)
+		if same_speed_sense(enc_out.ac1_actions[i], enc_out.ac2_actions[i])
+			return true
+		end
+	end
+	return false
+end
+
+function same_speed_sense(a1, a2)
+    a1sense = speed_sense(a1)
+    a2sense = speed_sense(a2)
+    return a1sense != :none && a1sense == a2sense
+end
+
+function is_oppo_speed_sense(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
+	for i = 1:length(enc_out.ac1_actions)
+		if oppo_speed_sense(enc_out.ac1_actions[i], enc_out.ac2_actions[i])
+			return true
+		end
+	end
+	return false
+end
+
+function oppo_speed_sense(a1, a2)
+    a1sense = speed_sense(a1)
+    a2sense = speed_sense(a2)
+    return (a1sense != :none && a2sense != :none) && a1sense != a2sense
+end
+
+function speed_sense(a)
+    if a == WA || a == SA
+        return :accel
+    elseif a == WD || a == SA
+        return :decel
+    else
+        return :none
+    end
 end
 
 function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
@@ -117,6 +188,21 @@ function is_nmac(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
 		v_sep = get_vert_sep(τ₀[i], τ₁[i])
 		nmac = h_sep < 500ft2m && v_sep < 100 #ft2m
+		if nmac
+			return true
+		end
+	end
+	return false
+end
+
+function is_lowc(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
+	τ₀ = enc_out.ac1_trajectory
+	τ₁ = enc_out.ac2_trajectory
+
+	for i = 30:length(τ₀)
+		h_sep = get_horiz_sep(τ₀[i], τ₁[i])
+		v_sep = get_vert_sep(τ₀[i], τ₁[i])
+		nmac = h_sep < 2000ft2m && v_sep < 250 #ft2m
 		if nmac
 			return true
 		end
@@ -152,7 +238,7 @@ function is_alert(enc_out::PAIRWISE_ENCOUNTER_OUTPUT)
 		alert₀ = any(enc_out.ac1_actions .> 0)
 		alert₁ = any(enc_out.ac2_actions .> 0)
 	end
-	return alert₀ || alert₁
+	return alert₀ #|| alert₁
 end
 
 function update_encounter_output!(enc_out::PAIRWISE_ENCOUNTER_OUTPUT, acs::Vector{AIRCRAFT}; surveillance_on=false)

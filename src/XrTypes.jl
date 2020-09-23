@@ -212,6 +212,7 @@ mutable struct UAM_SPEED <: AIRCRAFT
 	alerted::Bool
 	responsive::Bool
 	perform_scaling::Bool
+	τ_cutoff::Float64
 	init_delay::Int64
 	init_delay_counter::Int64
 	subseq_delay::Int64
@@ -342,8 +343,24 @@ end
 mutable struct SMALL_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
 	nmacs::Int64
 	nmac_inds::Vector{Int64}
+	lowcs::Int64
+	lowc_inds::Vector{Int64}
 	alerts::Int64
 	alert_inds::Vector{Int64}
+	times::Vector{Float64}
+end
+
+mutable struct SAFETY_SIMULATION_OUTPUT <: SIMULATION_OUTPUT
+	nmacs::Int64
+	nmac_inds::Vector{Int64}
+	lowcs::Int64
+	lowc_inds::Vector{Int64}
+	alerts::Int64
+	alert_inds::Vector{Int64}
+	same_speed_sense::Int64
+	same_speed_sense_inds::Vector{Int64}
+	oppo_speed_sense::Int64
+	oppo_speed_sense_inds::Vector{Int64}
 	times::Vector{Float64}
 end
 
@@ -466,6 +483,7 @@ function uam_speed(;ẍ = Vector{Float64}(),
 				   alerted = false,
 				   responsive = true,
 				   perform_scaling = false,
+				   τ_cutoff = Inf,
 				   init_delay = 0,
 				   init_delay_counter = 0,
 				   subseq_delay = 0,
@@ -481,7 +499,7 @@ function uam_speed(;ẍ = Vector{Float64}(),
 	close(s)
 	return UAM_SPEED(ẍ, ÿ, z̈, curr_action, NACp, tracker, curr_observation, 
 						curr_belief_state, curr_phys_state, 
-						alerted, responsive, perform_scaling, init_delay, init_delay_counter, 
+						alerted, responsive, perform_scaling, τ_cutoff, init_delay, init_delay_counter, 
 						subseq_delay, subseq_delay_counter, curr_step, grid, qmat, coordination)
 end
 
@@ -621,10 +639,28 @@ end
 
 function small_simulation_output(;nmacs = 0,
 								nmac_inds = Vector{Int64}(), 
+								lowcs = 0,
+								lowc_inds = Vector{Int64}(), 
 								alerts = 0,
 								alert_inds = Vector{Int64}(),
 								times = Vector{Float64}())
-	return SMALL_SIMULATION_OUTPUT(nmacs, nmac_inds, alerts, alert_inds, times)
+	return SMALL_SIMULATION_OUTPUT(nmacs, nmac_inds, lowcs, lowc_inds, alerts, alert_inds, times)
+end
+
+function safety_simulation_output(;nmacs = 0,
+								nmac_inds = Vector{Int64}(), 
+								lowcs = 0,
+								lowc_inds = Vector{Int64}(), 
+								alerts = 0,
+								alert_inds = Vector{Int64}(),
+								same_speed_sense = 0,
+								same_speed_sense_inds = Vector{Int64}(),
+								oppo_speed_sense = 0,
+								oppo_speed_sense_inds = Vector{Int64}(),
+								times = Vector{Float64}())
+	return SAFETY_SIMULATION_OUTPUT(nmacs, nmac_inds, lowcs, lowc_inds, alerts, alert_inds, 
+									same_speed_sense, same_speed_sense_inds, oppo_speed_sense, 
+									oppo_speed_sense_inds, times)
 end
 
 function pairwise_simulation_output(;ac1_trajectories = Vector{XR_TRAJECTORY}(),
@@ -679,5 +715,19 @@ function reset!(sim_out::SMALL_SIMULATION_OUTPUT)
 	sim_out.nmac_inds = Vector{Int64}()
 	sim_out.alerts = 0
 	sim_out.alert_inds = Vector{Int64}()
+	sim_out.times = Vector{Float64}()
+end
+
+function reset!(sim_out::SAFETY_SIMULATION_OUTPUT)
+	sim_out.nmacs = 0
+	sim_out.nmac_inds = Vector{Int64}()
+	sim_out.lowcs = 0
+	sim_out.lowc_inds = Vector{Int64}()
+	sim_out.alerts = 0
+	sim_out.alert_inds = Vector{Int64}()
+	sim_out.same_speed_sense = 0
+	sim_out.same_speed_sense_inds = Vector{Int64}()
+	sim_out.oppo_speed_sense = 0
+	sim_out.oppo_speed_sense_inds = Vector{Int64}()
 	sim_out.times = Vector{Float64}()
 end
